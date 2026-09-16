@@ -1,18 +1,23 @@
 # Parser
 
-**Fase 0/1 do DEVELOPMENT_PLAN.md** — implementar aqui.
+**Fase 0/1 do DEVELOPMENT_PLAN.md — concluída.**
 
-Conteúdo esperado:
-- `BankStatementParser.java` — interface abstrata
-- `StoneParser.java` — implementação para extratos Stone
-- `TransactionExtractor.java` — lógica de regex/parsing de valores e datas
-- `dto/` — `StatementMetadata`, `Transaction`, `ParsingResult`
+- `BankStatementParser.java` — interface abstrata (contrato para qualquer banco)
+- `StoneParser.java` — implementação para extratos Stone (agrupamento de linhas por coordenada Y, extração por faixas de coordenada X, extração de metadados do cabeçalho)
+- `TransactionExtractor.java` — utilitários reutilizáveis: parsing de moeda brasileira e datas
+- `PositionedWord.java` / `PdfWordExtractor.java` — extração de palavras posicionadas via PDFBox (equivalente ao `extract_words()` do pdfplumber em Python)
+- `StatementParsingException.java` — erro explícito quando o PDF não é reconhecido
+- `dto/` — `ParsedTransaction`, `StatementMetadata`, `ParsingResult`
 
-Referência da lógica original (Python, `pdfplumber`) que deve ser portada:
-- Agrupamento de palavras por coordenada Y (tolerância ~2.5pt) para reconstruir linhas
+Portado da lógica original em Python/pdfplumber (ver histórico do projeto `Parser/` anterior), preservando as mesmas regras:
+- Agrupamento de palavras por coordenada Y (tolerância 2.5pt) para reconstruir linhas
 - Identificação de linha de transação via regex de data (`dd/mm/yy`) + palavra "Entrada"/"Saída"
 - Parsing de valores monetários brasileiros (`R$ 1.234,56`, com sinal opcional)
 - Deduplicação de linhas de descrição consecutivas idênticas (artefato de renderização em negrito no PDF)
 - Extração de CNPJ e data de emissão do cabeçalho (primeira página)
 
-Este código deve ser testado isoladamente (ver `src/test/java/com/bankparser/parser/`) antes de integrar com API/DB.
+**Testes**: `src/test/java/com/bankparser/parser/` — `TransactionExtractorTest` (utilitários puros) e `StoneParserTest`
+(integração, com PDFs sintéticos gerados via PDFBox para não commitar dados financeiros reais). Rodar com `mvn test`.
+
+**Pendência opcional**: adicionar PDFs "golden" reais (idealmente anonimizados) em `src/test/resources/parser/`
+para validar contra o layout real da Stone além dos sintéticos.
