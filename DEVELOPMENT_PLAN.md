@@ -1,512 +1,261 @@
-# Bank Parser - Plano de Desenvolvimento
+# Bank Parser — Plano de Desenvolvimento
 
-> Este documento guia o desenvolvimento fase por fase. Atualizar conforme progresso.
+> Fases curtas, de propósito. Cada uma entrega algo que dá para usar e julgar
+> antes da próxima começar. Se uma fase não cabe em poucos dias, ela está mal
+> recortada.
 
-**Objetivo Final**: Transformar um parser de PDF bancário em uma plataforma escalável para múltiplos escritórios de contabilidade, começando como ferramenta interna, evoluindo para SaaS.
+**Objetivo**: converter extratos bancários em PDF para dados estruturados que o
+escritório consome, começando como ferramenta interna e podendo virar SaaS.
 
-**Stack**: Java 17 + Spring Boot 3 | React 18 | PostgreSQL 15 | MinIO | Docker
+**Stack**: Java 17 + Spring Boot 3 | React | PostgreSQL 15 | MinIO | Docker
 
-**Data de Início**: 2026-09-16
-
----
-
-## Resumo de Fases
-
-| Fase | Nome | Duração | Objetivo | Status |
-|------|------|---------|----------|--------|
-| 0/1 | Parser em Java (isolado) | 4-5 dias | Refatorar lógica Python → Java, validar com testes "golden" | ✅ Completa |
-| 2 | Infraestrutura + Multi-tenant | 2-3 dias | Docker Compose, Postgres, modelo de dados | ✅ Completa |
-| 3 | Integração Parser → API + Storage | 3-4 dias | Controllers, Storage MinIO, persistência | ✅ Completa |
-| **4-MVP** | **Backend + Frontend mínimos** | **3 dias** | **Cadastro de clientes, upload, listagem, download CSV — pronto pro escritório usar** | **✅ Completa** |
-| 4 | API Completa (expansão) | 2-3 dias | Paginação, filtros, relatórios — só se o MVP mostrar necessidade | ⏳ Opcional |
-| 5 | Frontend React (expansão) | 3-5 dias | Dashboard, gráficos, histórico avançado | ⏳ Opcional |
-| 6 | Testes e Deployment Local | 2-3 dias | Testes E2E, backup, documentação de produção | ⏳ Opcional |
-| 0.5 | Code Review + CI/CD | 1-2 dias | Parser rastreável, golden files, GitHub Actions | ✅ CI/CD feito; rastreabilidade opcional |
-
-**MVP pronto**: 3 dias (Fase 4-MVP). As fases seguintes são expansão, não bloqueio — o escritório já
-pode usar o sistema. Ver `FASE_4_CHECKLIST.md` e `SETUP_MVP.md` para detalhes de execução.
+As decisões de arquitetura que não mudam sem discussão estão no `CLAUDE.md`.
 
 ---
 
-## Fase 0/1: Parser em Java (Isolado)
+## Mapa
 
-**Objetivo**: Refatorar a extração de PDF (Python → Java) com testes robustos, sem depender de API/DB/Docker.
+| Fase | Nome | Tamanho | Depende de |
+|------|------|---------|------------|
+| **0** | **MVP — o que já existe** | — | ✅ concluída |
+| 1 | Primeiro uso real | 1–2 dias | Docker na máquina |
+| 2 | Desfazer e recuperar | 2 dias | 1 |
+| 3 | Reenvio e duplicata | 2 dias | 2 |
+| 4 | Autenticação | 3–4 dias | — |
+| 5 | Frontend novo | a definir | modelo de tela |
+| 6 | Conferência do extrato | 2–3 dias | 5 |
+| 7 | Exportação para a contabilidade | 2 dias | feedback da 1 |
+| 8 | Segundo banco | 3–4 dias | — |
+| 9 | Relatórios | 3 dias | 5 |
+| 10 | Operação | 2 dias | 1 |
+| 11 | SaaS | — | tudo acima |
 
-**Por que isolado?**: Validar que a lógica de parsing está correta antes de integrar com o resto do sistema. Bugs de extração descobertos tarde custam caro.
+**Independentes do frontend** (dá para tocar enquanto o modelo de tela não
+chega): 1, 2, 3, 4, 7, 8, 10.
 
-### Tarefas
-
-- [x] Setup Maven + dependências (PDFBox 3.0.2)
-- [x] Reescrever `BankStatementParser` (interface abstrata)
-- [x] Implementar `StoneParser` (heurística de coordenadas → grupos de linhas)
-- [x] Implementar `TransactionExtractor` (regex de data, detecção Entrada/Saída, parsing de moeda)
-- [x] Criar testes com PDFs sintéticos gerados via PDFBox (entrada conhecida = saída esperada) — ver nota abaixo
-- [x] Validação robusta (erro claro quando PDF inválido/formato desconhecido — `StatementParsingException`)
-- [x] DTOs para output (`ParsedTransaction`, `StatementMetadata`, `ParsingResult`)
-
-> **Nota sobre os testes "golden"**: em vez de PDFs reais de clientes, os testes atuais geram PDFs sintéticos
-> em memória (via PDFBox) reproduzindo o layout de colunas da Stone — evita commitar dados financeiros
-> sensíveis no repositório. Recomenda-se adicionar 1-2 PDFs reais (idealmente anonimizados) em
-> `src/test/resources/parser/` para validar contra o layout real quando disponível (ver README daquela pasta).
->
-> **Descoberta durante a implementação**: ao gerar PDFs sintéticos, colunas com pouco espaçamento horizontal
-> fazem o PDFBox fundir palavras adjacentes em um único trecho de texto na extração (`writeString`), quebrando
-> a divisão em "palavras" — corrigido usando espaçamento generoso entre colunas nos PDFs de teste. Não afeta
-> extratos reais da Stone (cujo layout já tem esse espaçamento natural), mas é relevante para quem for
-> escrever novas fixtures sintéticas no futuro (ex.: para outro banco).
-
-### Deliverables
-
-```
-backend/
-├── pom.xml (com PDFBox, JUnit 5, AssertJ)
-├── src/main/java/com/bankparser/
-│   └── parser/
-│       ├── BankStatementParser.java (interface)
-│       ├── StoneParser.java (implementação)
-│       ├── TransactionExtractor.java (lógica de regex/parsing)
-│       └── dto/
-│           ├── StatementMetadata.java
-│           ├── Transaction.java
-│           └── ParsingResult.java
-└── src/test/java/com/bankparser/
-    └── parser/
-        ├── StoneParserTest.java
-        ├── resources/
-        │   ├── test_extrato_1.pdf
-        │   ├── test_extrato_1_expected.json
-        │   └── ... (2-4 mais)
-```
-
-### Checklist de Conclusão
-
-- [x] Todos os testes passam (10/10 — `mvn test`)
-- [ ] PDFs "golden" reais adicionados (pendente — hoje só sintéticos, ver nota acima)
-- [x] Erro claro quando PDF não é Stone ou inválido (não silent failure)
-- [x] `CLAUDE.md` do projeto documenta como rodar (`./mvnw test` — ver seção "Setup Local")
-- [x] Projeto compila sem erros (`mvn compile`)
+O frontend React atual é **andaime**: existe para exercitar a API enquanto o
+modelo novo não chega. Não vale investir nele além do mínimo — será substituído
+na Fase 5.
 
 ---
 
-## Fase 2: Infraestrutura + Multi-tenant
+## Fase 0 — MVP (concluída)
 
-**Objetivo**: Montar Docker Compose, banco de dados, modelo de dados multi-tenant (Organization/Client/Statement/Transaction).
+Upload de PDF Stone → extração → CSV, com isolamento multi-tenant e
+rastreabilidade de parser. É o ponto de partida de tudo que vem depois.
 
-### Tarefas
+**Entregue**:
+- **Parser** `StoneParser` por coordenadas (PDFBox), validado 264/264 contra a
+  saída do parser Python original. `BankStatementParser` é interface; o segundo
+  banco não mexe no resto do sistema.
+- **Dados**: Postgres + Flyway (V1–V4), modelo `Organization → Client →
+  Statement → Transaction`, `organization_id` em toda tabela, soft-delete em
+  tudo (histórico contábil não some).
+- **Storage**: `StorageService` com implementação MinIO — trocar por S3/R2 não
+  toca em código de negócio.
+- **API**: `POST/GET /api/clients`, `POST /api/statements/upload`,
+  `GET /api/statements`, `GET /api/statements/{id}`,
+  `GET /api/statements/{id}/export`.
+- **Rastreabilidade**: `parser_version` por extrato, `TransactionType` enum,
+  `BalanceValidationService` sinalizando divergência de saldo sem bloquear.
+- **Testes**: 43 (2 pulados por dependerem do extrato real). Postgres e S3
+  embarcados — a suíte roda sem Docker.
+- **CI**: testes a cada push; frontend publicado no GitHub Pages.
 
-- [x] Docker Compose: PostgreSQL 15 + pgAdmin (dev)
-- [x] `application.yml` (base + profile `dev` com SQL logging)
-- [x] Entidades JPA:
-  - [x] `Organization` (seu escritório, depois mais)
-  - [x] `User` (funcionários, preparado para auth futura)
-  - [x] `Client` (CNPJ atendido)
-  - [x] `Statement` (PDF enviado, metadata)
-  - [x] `Transaction` (linha extraída)
-- [x] Migrations Flyway (`V1__init_schema.sql`, `V2__seed_default_organization.sql`)
-- [x] Repositories (JpaRepository para cada entidade, sempre filtrando por `organizationId`)
-- [x] Configuração Spring Boot mínima (sem controllers ainda)
-
-> **Soft-delete**: todas as entidades herdam `BaseEntity` (id, `createdAt`, `updatedAt`, `deleted`) e usam
-> `@SQLDelete` + `@SQLRestriction` do Hibernate. `repository.delete(x)` vira um `UPDATE ... SET deleted = true`
-> e toda query passa a ignorar a linha automaticamente — sem precisar repetir o filtro em cada método.
-> O índice único de `clients` é parcial (`WHERE deleted = false`), então um CNPJ removido pode ser recadastrado.
->
-> **`organization_id` denormalizado** em `statements` e `transactions`: o filtro de tenant obrigatório vira um
-> predicado indexado direto, em vez de um join em cadeia até `clients`.
->
-> **Testes sem Docker**: `SchemaIntegrationTest` sobe um Postgres 15 real (binário embarcado via
-> `io.zonky.test:embedded-postgres`, sem daemon) e roda o contexto Spring inteiro. Como o `application.yml`
-> usa `ddl-auto: validate`, o contexto só sobe se cada campo das entidades bater com a coluna criada pelo
-> Flyway — divergência entre Java e SQL quebra no teste, não em produção.
-
-### Deliverables
-
-```
-docker-compose.yml (Postgres + pgAdmin)
-.env.example (configurações)
-.env.local (git-ignored, local)
-
-backend/src/main/java/com/bankparser/
-├── config/
-│   └── DatabaseConfig.java
-├── entity/
-│   ├── Organization.java
-│   ├── User.java
-│   ├── Client.java
-│   ├── Statement.java
-│   └── Transaction.java
-├── repository/
-│   ├── OrganizationRepository.java
-│   ├── ClientRepository.java
-│   ├── StatementRepository.java
-│   └── TransactionRepository.java
-└── resources/
-    ├── application.yml
-    ├── application-dev.yml
-    └── db/migration/
-        └── V1__init_schema.sql
-```
-
-### Checklist de Conclusão
-
-- [ ] `docker-compose up` sobe Postgres + pgAdmin sem erros — **pendente**: Docker Desktop foi instalado
-      nesta máquina mas não foi configurado (requer aceitar a tela inicial). Validar quando o ambiente estiver pronto.
-- [x] Migrations rodam automaticamente (Flyway) — verificado em `SchemaIntegrationTest`
-- [x] Tables criadas corretamente em Postgres — verificado contra Postgres 15.6 real
-- [x] Spring Boot sobe sem erros (mesmo sem controllers) — contexto completo sobe com `ddl-auto: validate`
-- [ ] pgAdmin acessível em localhost:5050 com dados visíveis — **pendente**, depende do Docker
+**O que ainda não foi verificado** — é o que a Fase 1 existe para resolver:
+- `docker compose up` nunca rodou (não há Docker nesta máquina)
+- Nenhum PDF real passou pela API de ponta a ponta — só pelo parser isolado
+- A imagem do backend nunca foi construída
+- As constantes do `RealStatementRegressionTest` (264 transações, 11
+  divergências) vieram da análise da era Python e não foram confirmadas aqui
 
 ---
 
-## Fase 3: Integração Parser → API + Storage
+## Fase 1 — Primeiro uso real
 
-**Objetivo**: Conectar o parser (Fase 1) com o banco (Fase 2) e storage MinIO. Primeira funcionalidade real.
+**Objetivo**: alguém do escritório processa um extrato de verdade, de ponta a
+ponta, e o CSV serve.
 
-### Tarefas
+**Entrega**:
+- `docker compose up -d` validado (Postgres + MinIO), migrations aplicadas
+- Imagem do backend construída: `docker compose --profile full up -d`
+- Um PDF real: cadastra cliente → envia → baixa CSV
+- `mvn test -Dbankparser.it.pdf=...` rodado; constantes da baseline confirmadas
+  ou corrigidas
+- `SETUP_MVP.md` ajustado com o que der errado no caminho
 
-- [x] Docker Compose: MinIO container — já existia desde a Fase 0
-- [x] Interface `StorageService` (contrato abstrato, sem tipos do MinIO)
-- [x] Implementação `MinIOStorageService` + `MinIOConfig`/`MinIOProperties`
-- [x] Serviço `StatementProcessingService`:
-  - [x] Recebe PDF + Client ID
-  - [x] Chama parser (Fase 1)
-  - [x] Persiste Statement + Transactions no Postgres
-  - [x] Armazena o PDF no MinIO
-  - [x] Confere o CNPJ do extrato contra o do cliente
-- [x] Controller `StatementController`:
-  - [x] POST `/api/statements/upload` (multipart/form-data)
-  - [x] GET `/api/statements/{id}` (metadata)
-  - [x] GET `/api/statements/{id}/export?format=csv`
-- [x] Tratamento de erros (`GlobalExceptionHandler`)
+**Pronto quando**: o CSV gerado pela API bate com o que o escritório já usa.
 
-> **CSV gerado sob demanda**, não guardado no MinIO: o CSV é função das linhas já persistidas, e
-> materializá-lo criaria uma segunda cópia que pode divergir do banco. Só o PDF original vai para o
-> storage. Excel fica para a Fase 4/5, junto dos relatórios.
->
-> **Ordem de gravação**: o PDF sobe para o storage *antes* do commit. Falha no storage aborta a
-> transação e no pior caso deixa um objeto órfão no bucket — lixo coletável. Na ordem inversa sobraria
-> um `Statement` apontando para arquivo inexistente, que é dado corrompido.
->
-> **Conferência de documento**: upload com CNPJ divergente do cliente responde **409**. Num escritório
-> contábil, um extrato lançado sob o cliente errado é um erro caro e silencioso. Quando o parser não
-> extrai o documento do cabeçalho, o upload segue sem conferir.
->
-> **`CurrentOrganizationProvider`**: o `organizationId` sai de um único ponto, que hoje devolve a
-> organização padrão e na Fase 7 passa a ler do `SecurityContext` — nenhum controller muda.
->
-> **Parser por `bankKey`**: o serviço indexa os `BankStatementParser` disponíveis e o endpoint aceita
-> `bankKey` (default `stone`), então incluir outro banco na Fase 8 não altera o contrato da API.
-
-### Deliverables
-
-```
-backend/src/main/java/com/bankparser/
-├── service/
-│   ├── StatementProcessingService.java
-│   ├── storage/
-│   │   ├── StorageService.java (interface)
-│   │   └── MinIOStorageService.java (implementação)
-│   └── parser/
-│       └── ParserFacade.java (orquestra parser + BD)
-├── controller/
-│   └── StatementController.java
-└── dto/
-    ├── UploadStatementRequest.java
-    ├── StatementResponse.java
-    └── ExportRequest.java
-
-docker-compose.yml (adicionar MinIO)
-```
-
-### Checklist de Conclusão
-
-- [ ] `docker-compose up` sobe Postgres + MinIO sem erros — **pendente**, depende do Docker
-- [x] POST `/api/statements/upload` aceita PDF, persiste em DB + storage
-- [x] GET `/api/statements/{id}` retorna metadata (fileName, uploadedAt, transactionCount)
-- [x] GET `/api/statements/{id}/export?format=csv` baixa CSV
-- [x] Erro claro quando parsing falha (422, e nada é gravado — verificado em teste)
-- [ ] MinIO console acessível (localhost:9001) — **pendente**, depende do Docker
-
-**Como isso foi verificado sem Docker** (28 testes, `mvn test`):
-
-- `StatementControllerIntegrationTest` — contexto Spring completo + Postgres embarcado + `MockMvc`:
-  upload de ponta a ponta, export CSV na ordem do PDF, PDF ilegível → 422 sem gravar nada, CNPJ
-  divergente → 409, cliente de outra organização → 404. O `StorageService` aí é uma implementação em
-  memória (`testsupport/InMemoryStorageService`).
-- `MinIOStorageServiceTest` — o `MinIOStorageService` de verdade contra um endpoint S3 embarcado
-  (`com.adobe.testing:s3mock-junit5`, também sem Docker): bucket criado sob demanda, bytes gravados e
-  relidos, remoção. Como o MinIO fala S3, isso cobre o protocolo — não só a chamada de método.
-
-Falta apenas o caminho manual contra o MinIO real (`docker-compose up`, upload, conferir em
-`localhost:9001`), que depende de concluir a configuração do Docker Desktop nesta máquina.
+**Feedback a colher**: o formato do CSV atende? O que incomoda no fluxo? Quanto
+tempo economiza de fato? *Tudo que vier daqui pode reordenar as fases seguintes
+— é o ponto de correção de rota mais barato do projeto.*
 
 ---
 
-## Fase 4-MVP: Backend + Frontend Mínimos
+## Fase 2 — Desfazer e recuperar
 
-**Objetivo**: Upload de PDF → download de CSV, utilizável pelo escritório. Sem paginação, filtros,
-dashboard — só o essencial, porque o volume real (poucos clientes, poucos uploads/dia) não justifica.
+**Objetivo**: errar não exigir mexer no banco.
 
-### Tarefas
+**Entrega**:
+- `GET /api/statements/{id}/pdf` — baixar o original. `StorageService.download()`
+  já existe e hoje não tem chamador
+- `DELETE /api/statements/{id}` — soft-delete, o extrato some da lista mas fica
+  no histórico
+- `DELETE /api/clients/{id}` — só quando não há extrato ativo, senão 409
 
-- [x] `ClientController`: POST `/api/clients` (cria, valida nome/documento, rejeita CNPJ duplicado
-      com 409), GET `/api/clients` (lista tudo, sem paginação)
-- [x] `dto/ClientRequest.java`, `dto/ClientResponse.java`
-- [x] `exception/DuplicateClientException.java` + handler no `GlobalExceptionHandler`
-- [x] Validação de entrada via Bean Validation (`spring-boot-starter-validation` adicionado ao pom)
-- [x] `GET /api/statements` (lista, sem paginação) — necessário para a tela "Meus Extratos"
-- [x] Frontend React + Vite: `Upload.jsx` (cadastro rápido de cliente + envio de PDF) e
-      `Statements.jsx` (lista + download de CSV)
-- [x] `HashRouter` em vez de `BrowserRouter`: GitHub Pages não redireciona toda rota para
-      `index.html`, então um refresh em `/statements` daria 404 com histórico normal
-- [x] `.github/workflows/frontend-deploy.yml` e `backend-test.yml`
-- [x] `SETUP_MVP.md`, `GITHUB_SETUP.md`
+**Pronto quando**: dá para apagar um envio errado e reenviar sem SQL na mão.
 
-> **Sem `ClientService` intermediário**: a lógica (checar duplicidade, salvar) cabe em poucas linhas
-> no controller. Um service só pra isso seria abstração sem função — camada extra que nada abstrai.
->
-> **CNPJ sem validação de dígito verificador**: valida presença e normaliza (remove máscara), não
-> confere o dígito. MVP mínimo; adicionar depois se um CNPJ inválido causar problema real.
->
-> **Node.js instalado nesta máquina** (LTS via winget) para testar o build do frontend — não havia
-> antes. `npm run build` gera ~221KB (74KB gzip), validado localmente.
-
-### Checklist de Conclusão
-
-- [x] `mvn test` passa (33 testes: 28 anteriores + 4 de `ClientController` + 1 de listagem de statements)
-- [x] `npm run build` gera `frontend/dist/` sem erros
-- [x] Frontend renderiza e trata erro de rede corretamente (testado com backend desligado)
-- [ ] Fluxo end-to-end real (Docker + backend + frontend juntos) — **pendente**, ainda depende do
-      Docker Desktop nesta máquina. Ver `SETUP_MVP.md` para rodar quando disponível.
+**Feedback**: apagar deve ser reversível pela interface, ou some e pronto?
 
 ---
 
-## Fase 4: API Completa (Expansão, Opcional)
+## Fase 3 — Reenvio e duplicata
 
-**Objetivo**: Endpoints de CRUD, paginação, filtros. API pronta para consumir do frontend.
+**Objetivo**: o sistema perceber que aquele extrato já entrou.
 
-### Tarefas
+**Entrega**:
+- Hash do PDF gravado no `Statement` (migration + coluna)
+- Upload de arquivo idêntico responde `409` com link para o existente, e um
+  parâmetro explícito (`?force=true`) para enviar assim mesmo
+- Aviso quando já existe extrato do mesmo cliente e período, mesmo com arquivo
+  diferente
 
-- [ ] Controller `ClientController`:
-  - [ ] GET `/api/clients` (lista, paginado)
-  - [ ] POST `/api/clients` (criar novo CNPJ)
-  - [ ] GET `/api/clients/{id}` (detalhes)
-- [ ] Controller `TransactionController`:
-  - [ ] GET `/api/statements/{statementId}/transactions` (paginado, filtrado)
-  - [ ] Query params: page, size, filterBy (categoria, data, valor)
-- [ ] Serviço de relatório (`ReportService`):
-  - [ ] Saldo ao longo do tempo (por statement ou consolidado)
-  - [ ] Distribuição por bandeira/categoria
-  - [ ] Totais por mês
-- [ ] Validação de input (CNPJ válido, datas, etc.)
-- [ ] Logging estruturado (quem fez upload de qual PDF quando)
+**Pronto quando**: enviar o mesmo arquivo duas vezes por engano não cria dois
+extratos em silêncio.
 
-### Deliverables
-
-```
-backend/src/main/java/com/bankparser/
-├── controller/
-│   ├── ClientController.java
-│   ├── TransactionController.java
-│   └── ReportController.java
-├── service/
-│   ├── ClientService.java
-│   ├── TransactionService.java
-│   └── ReportService.java
-├── dto/
-│   ├── ClientRequest/Response
-│   ├── TransactionResponse
-│   └── ReportResponse
-└── exception/
-    └── GlobalExceptionHandler.java (erros padronizados)
-```
-
-### Checklist de Conclusão
-
-- [ ] GET `/api/clients` retorna paginado
-- [ ] POST `/api/clients` cria novo com validação de CNPJ
-- [ ] GET `/api/statements/{id}/transactions` com filtros (categoria, data)
-- [ ] GET `/api/reports/balance-timeline?statementId=...` retorna série temporal
-- [ ] Todos os endpoints retornam JSON com estrutura consistente
-- [ ] Documentação Swagger gerada automaticamente
+**Feedback**: bloquear ou só avisar? Reenviar o mesmo período é erro ou rotina
+(extrato parcial atualizado, por exemplo)?
 
 ---
 
-## Fase 5: Frontend React
+## Fase 4 — Autenticação
 
-**Objetivo**: Interface para upload e visualização de dados. MVP de UX.
+**Objetivo**: cada pessoa entra com o próprio usuário.
 
-### Tarefas
+**Entrega**:
+- Spring Security; a entidade `User` e a tabela `users` já existem desde a V1
+- `CurrentOrganizationProvider` passa a ler do `SecurityContext` — a costura foi
+  feita justamente para isso, nenhum controller muda
+- Cadastro de usuário pelo administrador do escritório
+- Testes de isolamento: usuário de uma organização não alcança dados de outra
 
-- [ ] Setup Next.js (ou Vite + React)
-- [ ] Página de upload (drag-drop, progress bar)
-- [ ] Página de statements (tabela listando PDFs processados)
-- [ ] Página de transactions (visualizar linhas, filtros básicos)
-- [ ] Download (botão CSV/Excel)
-- [ ] Dashboard simples (gráficos: saldo, bandeiras, categorias)
-- [ ] Tratamento de erros e feedback visual
+**Pronto quando**: derrubar a sessão bloqueia o acesso a toda a API.
 
-### Deliverables
-
-```
-frontend/
-├── package.json
-├── src/
-│   ├── pages/
-│   │   ├── upload.jsx
-│   │   ├── statements.jsx
-│   │   ├── transactions.jsx
-│   │   └── dashboard.jsx
-│   ├── components/
-│   │   ├── UploadDropZone.jsx
-│   │   ├── StatementTable.jsx
-│   │   ├── TransactionTable.jsx
-│   │   └── Charts.jsx
-│   ├── services/
-│   │   └── api.js (axios ou fetch, chamadas para /api/...)
-│   └── App.jsx
-└── Dockerfile
-```
-
-### Checklist de Conclusão
-
-- [ ] Página de upload funciona (upload real)
-- [ ] Página de statements lista PDFs processados
-- [ ] Página de transactions mostra linhas com paginação
-- [ ] Download CSV/Excel funciona
-- [ ] Gráficos (Chart.js ou Recharts) renderizam dados reais
-- [ ] Erros de API mostram mensagens claras
+**Nota de posição**: se a aplicação for ficar só na rede interna, esta fase pode
+esperar. Se for acessível de fora, **ela vem antes de qualquer outra**.
 
 ---
 
-## Fase 6: Testes e Deployment Local
+## Fase 5 — Frontend novo
 
-**Objetivo**: Validar tudo junto, documentar, preparar para rodar no escritório.
+**Objetivo**: substituir o andaime pelo modelo de tela definido por você.
 
-### Tarefas
+**Entrega**: depende do modelo. O que já está pronto do lado da API:
+listagem de clientes e extratos, upload, download de CSV, e (conforme as fases
+2–4 avancem) PDF original, exclusão e login.
 
-- [ ] Testes integrados (API + Parser + DB + MinIO)
-- [ ] Testes E2E (frontend + backend) com Cypress ou Playwright
-- [ ] Documentação:
-  - [ ] README.md (overview)
-  - [ ] SETUP.md (como rodar localmente)
-  - [ ] API.md (documentação de endpoints)
-  - [ ] DEPLOYMENT.md (como rodar no escritório)
-- [ ] Scripts:
-  - [ ] `docker-compose up` com seed (Organization padrão criada)
-  - [ ] Backup automático de DB + MinIO
-  - [ ] Restore de backup
-- [ ] `.env.example` com todas as variáveis documentadas
-- [ ] `.gitignore` completo (node_modules, target/, .env.local, data/MinIO, etc.)
+**Pronto quando**: o andaime atual pode ser apagado do repositório.
 
-### Deliverables
-
-```
-├── README.md
-├── SETUP.md
-├── API.md
-├── DEPLOYMENT.md
-├── docker-compose.yml (com seed)
-├── .env.example
-├── .gitignore
-├── scripts/
-│   ├── backup.sh
-│   ├── restore.sh
-│   └── seed-db.sql
-└── backend/src/test/java/
-    └── com/bankparser/integration/
-        └── StatementProcessingIntegrationTest.java
-```
-
-### Checklist de Conclusão
-
-- [ ] `docker-compose up` sobe tudo, aplica migrations, cria Organization default
-- [ ] Upload PDF → API processa → dashboard mostra dados (fluxo end-to-end)
-- [ ] Testes integrados passam (90%+ cobertura)
-- [ ] Backup/restore funcionam
-- [ ] Documentação é clara o suficiente pra colega rodar sem ajuda
-- [ ] `.gitignore` exclui dados sensíveis (PDFs reais, .env.local, volumes Docker)
+**Bloqueio**: aguardando o modelo. Enquanto isso, as fases independentes andam.
 
 ---
 
-## Decisões de Arquitetura (não mudar sem discussão)
+## Fase 6 — Conferência do extrato
 
-| Decisão | Rationale | Implicação |
-|---|---|---|
-| **Multi-tenant desde o início** | Hoje = 1 Organization, amanhã = muitas. Evita migração de schema. | Toda query filtra por Organization_ID. Código já pronto pra escalar. |
-| **Storage abstrato (interface)** | Trocar de MinIO local para AWS S3/Cloudflare R2 depois é só mudar annotation. | StorageService + 2+ implementações (MinIO, S3, etc.). |
-| **Parser isolado em testes** | Bugs de extração descobertos cedo, não em produção. | Testes "golden" com PDFs reais + saída esperada. |
-| **DTOs separados de Entities** | Contrato de API não muda quando BD muda. | Mais boilerplate agora, menos quebra depois. |
-| **Sem autenticação (por enquanto)** | MVP rápido, adicionada na Fase 7. | Controllers já estruturados para receber User (preparado). |
-| **Soft-delete em tudo** | Auditoria contábil exige que o histórico sobreviva à remoção. | `@SQLDelete` + `@SQLRestriction`; ler linhas removidas exige query nativa. |
-| **Reenvio do mesmo PDF cria novo Statement** | Deduplicar por hash esconderia reenvios legítimos (ex.: extrato corrigido pelo banco). | Quem envia responde pelo reenvio; sem validação de duplicata. |
-| **Logging estruturado adiado** | Sem volume real ainda, seria complexidade especulativa. | Logs simples agora; migrar quando houver produção. |
+**Objetivo**: transformar `validation_flags` em trabalho de conferência de
+verdade, em vez de um campo que ninguém olha.
 
----
+**Entrega**:
+- As divergências de saldo aparecem na tela, na linha certa
+- Marcar um extrato como conferido (quem e quando)
+- Corrigir uma transação manualmente, com registro de que foi editada — o valor
+  original nunca é sobrescrito sem trilha
 
-## Fase 0.5: Code Review, CI/CD e Rastreabilidade do Parser
+**Pronto quando**: dá para saber, olhando a lista, quais extratos precisam de
+atenção humana.
 
-**Objetivo**: Garantir que trocar o parser NÃO quebra produção; saber QUAIS statements foram afetados.
-
-**Problema descoberto**: Teste de saldo revelou que 11 de 264 linhas (4%) têm atribuição errada de "Tarifa" em 
-operações de boleto groupadas. Isso passou silenciosamente porque os testes usam PDFs sintéticos. **Solução**: 
-golden files (saída esperada do parser contra extratos reais), `parser_version` pra rastreabilidade, enum pra 
-tipo de transação.
-
-### Tarefas
-
-- [ ] **`parser_version` em `statements`**: Adicionar coluna (Flyway), entidade, e `BankStatementParser.parserVersion()`
-- [ ] **`TransactionType` enum**: `ENTRADA`/`SAIDA`, substitui String em `Transaction.type`
-- [ ] **Golden file**: `stone-real-264-expected.json` (saída esperada, JSON não PDF)
-- [ ] **`BalanceValidationService`**: Valida saldo (informativo, não bloqueia), marca statements com flag
-- [x] **CI/CD GitHub Actions**: `backend-test.yml` (roda `mvn test` em todo push) e
-      `frontend-deploy.yml` (build + deploy em GitHub Pages) — feitos junto com a Fase 4-MVP.
-      Falta: lint.yml (SpotBugs) e gate de cobertura mínima.
-- [x] **README: seção "Parser Changeability"**: Risco documentado (já feito, ver `README.md`)
-
-### Verificação
-
-- [ ] `mvn test` passa (28+ testes, cobertura > 75%)
-- [ ] GitHub Actions roda em todo push; main rejeita merges se falhar
-- [ ] Golden file diff mostra que APENAS as 3 linhas esperadas mudaram vs real anterior
-- [ ] `SELECT COUNT(*) FROM statements WHERE parser_version = '1.0'` funciona (rastreabilidade)
+**Feedback**: as divergências que o sistema aponta são as que importam, ou é
+ruído?
 
 ---
 
-## Próximas Fases (futuro, não agora)
+## Fase 7 — Exportação para a contabilidade
 
-- **Fase 7**: Autenticação (Spring Security + JWT ou OAuth)
-- **Fase 8**: Suporte a mais bancos (ItauParser, BradescoParser, etc.)
-- **Fase 9**: Exportação para ferramentas de contabilidade (Conta Azul, QuickBooks)
-- **Fase 10**: Billing (Stripe) + SaaS público
+**Objetivo**: exportar no formato que o sistema contábil do escritório aceita.
 
----
+**Entrega**:
+- Excel (`.xlsx`) além do CSV — o Apache POI foi removido do `pom.xml` quando
+  virou peso morto e volta aqui, com uso de verdade
+- Layout de colunas definido pelo que a Fase 1 revelar
+- Se houver um formato de importação específico do sistema contábil, ele entra
+  aqui
 
-## Status de Progresso
-
-**Última atualização**: 2026-09-16
-
-| Fase | Status | Notas |
-|------|--------|-------|
-| 0/1 | ✅ Concluída | Parser Java funcional. Validado contra extrato Stone real: 264/264 transações, descoberto defeito em 11 linhas (4%) — tarifa atribuída errado em operações groupadas. |
-| 2 | ✅ Concluída | Schema + entidades + repositories, validados contra Postgres 15 real. Falta só validar o `docker-compose` (Docker não configurado na máquina). |
-| 3 | ✅ Concluída | Upload → parse → persistência → export CSV, 28/28 testes. MinIO coberto via endpoint S3 embarcado; falta o teste manual contra o MinIO real. |
-| **4-MVP** | **✅ Concluída** | **`ClientController` (POST/GET), `GET /api/statements`, frontend React (Upload + Statements), GitHub Actions (test + deploy Pages). 33/33 testes. Falta só o teste manual end-to-end com Docker.** |
-| 4 (expansão) | ⏳ Opcional | Paginação, filtros, relatórios — só se o uso real do MVP mostrar necessidade. |
-| 5 (expansão) | ⏳ Opcional | Dashboard, gráficos. |
-| 6 | ⏳ Opcional | E2E tests, backup scripts, docs de produção. |
-| 0.5 | 🔄 Parcial | CI/CD feito (test + deploy). Falta: `parser_version`, golden files, enum `TransactionType`, `BalanceValidationService`. |
+**Pronto quando**: o arquivo importa no sistema contábil sem edição manual.
 
 ---
 
-## Como Usar Este Documento
+## Fase 8 — Segundo banco
 
-1. **Antes de cada sessão**: Revisar a fase atual e checklist
-2. **Durante desenvolvimento**: Marcar tarefas conforme completa (`- [x]`)
-3. **Ao final de fase**: Validar checklist, atualizar status
-4. **Mudanças no plano**: Documentar aqui com data e rationale
+**Objetivo**: provar que trocar/adicionar parser não mexe no resto.
+
+**Entrega**:
+- `ItauParser` (ou o banco que aparecer primeiro) implementando
+  `BankStatementParser`, mapeando o vocabulário dele ("Crédito"/"Débito") para
+  o `TransactionType` que já existe
+- `parserVersion()` próprio, baseline de regressão própria
+- Seleção de banco no upload — o parâmetro `bankKey` já está no endpoint
+
+**Pronto quando**: o novo banco funciona sem nenhuma alteração em controller,
+serviço, schema ou contrato de API. *Se algo fora do pacote `parser` precisar
+mudar, a arquitetura falhou e vale parar para entender por quê.*
 
 ---
 
-*Mantido em: `bank-parser/DEVELOPMENT_PLAN.md`*  
-*Última revisão: 2026-09-16*
+## Fase 9 — Relatórios
+
+**Objetivo**: responder perguntas que hoje exigem abrir o CSV no Excel.
+
+**Entrega**:
+- Totais por cliente e período
+- Evolução de saldo
+- Filtros e paginação nas listagens — o volume real medido nas fases anteriores
+  é que diz se isso já é necessário
+
+**Pronto quando**: a pergunta mais frequente do escritório é respondida sem
+exportar nada.
+
+---
+
+## Fase 10 — Operação
+
+**Objetivo**: o sistema sobreviver a uma semana sem ninguém olhando.
+
+**Entrega**:
+- Backup automático de Postgres e MinIO, com restauração testada de verdade
+- Healthcheck (`/actuator/health`) e reinício automático no Compose
+- Retenção e rotação de log
+- Procedimento de atualização sem perder dados
+
+**Pronto quando**: restaurar do backup num ambiente limpo recupera tudo.
+
+---
+
+## Fase 11 — SaaS
+
+Só depois de o escritório usar o sistema por um tempo e as fases acima estarem
+estáveis: cadastro de novas organizações, cobrança (Stripe), onboarding,
+limites por plano.
+
+---
+
+## Como usar este documento
+
+- Uma fase por vez. Terminou, colhe o feedback, e só então decide a próxima —
+  a ordem daqui para frente é uma proposta, não um contrato.
+- Fase que não cabe em poucos dias está mal recortada: quebre.
+- Ao concluir, marque aqui o que ficou **verificado** e o que ficou **suposto**.
+  A Fase 0 é o exemplo: o código está pronto, mas quatro coisas nunca rodaram de
+  verdade, e isso está escrito lá em vez de ficar implícito.
+
+---
+*Atualizado: 2026-09-16*

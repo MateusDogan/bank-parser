@@ -1,5 +1,11 @@
 # Roadmap Atualizado — Q3 2026
 
+> **⚠️ Documento superado (2026-09-16).** A numeração e a ordem de fases aqui
+> não valem mais — a rastreabilidade do parser descrita como futura já foi
+> implementada, e o plano foi refeito em fases menores.
+> **O plano válido é o `DEVELOPMENT_PLAN.md`.** Este arquivo fica só como
+> registro do raciocínio que levou à Fase 0.5.
+
 ## Mudança Central: Parser Changeability
 
 O usuário levantou uma questão crítica: **"Como garanto que posso trocar o parser sem quebrar produção?"**
