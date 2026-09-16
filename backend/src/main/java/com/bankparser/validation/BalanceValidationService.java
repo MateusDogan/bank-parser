@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Valida se o saldo de cada transacao e consistente com a proxima (ou seja,
@@ -42,12 +43,13 @@ public class BalanceValidationService {
     }
 
     public record ValidationReport(List<Integer> divergentLines) {
+        /** Resumo para a coluna {@code validation_flags}; {@code null} quando esta tudo certo. */
         public String toStorageSummary() {
             if (divergentLines.isEmpty()) {
                 return null;
             }
             return divergentLines.size() + " divergencia(s) de saldo nas linhas: "
-                    + divergentLines.stream().map(String::valueOf).reduce((a, b) -> a + ", " + b).orElse("");
+                    + divergentLines.stream().map(String::valueOf).collect(Collectors.joining(", "));
         }
     }
 }

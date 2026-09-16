@@ -12,6 +12,15 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          # Um extrato chega com centenas de transacoes de uma vez; sem batch
+          # cada uma vira um round-trip separado. Funciona aqui porque o id e
+          # atribuido pela aplicacao (com IDENTITY o Hibernate desliga batch).
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
 
   flyway:
     enabled: true
