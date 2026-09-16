@@ -29,25 +29,31 @@ Antes do workflow funcionar, você precisa **habilitar GitHub Pages uma vez**.
 - Salva
 
 ### Passo 3: Workflow Roda Automaticamente
-Primeira vez que o `frontend-deploy.yml` roda (após Fase 4 quando existir `frontend/src/main.jsx`):
-1. Constrói React (`npm run build`)
+A cada push que toque `frontend/**`:
+1. Constrói React com Vite (`npm run build`)
 2. Deploy em GitHub Pages
 3. Frontend fica vivo em: `https://MateusDogan.github.io/bank-parser/`
 
 ---
 
-## 🔧 Configuração do Frontend no Workflow
+## 🔧 Apontar o Frontend para o Backend Real
 
-**Atenção**: O workflow atual tem placeholder para `REACT_APP_API_URL`:
+O workflow usa a variável `VITE_API_URL` (Vite, não Create React App), lida de uma
+**repository variable** — assim você não precisa editar o YAML quando o backend mudar de lugar:
+
 ```yaml
 env:
-  REACT_APP_API_URL: https://seu-backend-url.com
+  VITE_API_URL: ${{ vars.BACKEND_URL || 'http://localhost:8080' }}
 ```
 
-Substitua pelo seu backend real quando souber:
-- Lightsail: `https://seu-backend.lightnsail.com`
-- VPS próprio: `https://seu-dominio.com`
-- Local/intranet: `http://seu-ip:8080`
+**Configurar `BACKEND_URL`**:
+1. Repository → **Settings** → **Secrets and variables** → **Actions** → aba **Variables**
+2. **New repository variable**: nome `BACKEND_URL`, valor a URL real do backend
+   - Lightsail/VPS: `https://seu-backend.com`
+   - Intranet do escritório: **não funciona** — GitHub Pages é público na internet e não alcança
+     um IP privado. Nesse caso, sirva o frontend do mesmo host do backend em vez de GitHub Pages.
+3. Sem essa variável configurada, o build usa `http://localhost:8080` como fallback (só funciona
+   se quem abrir a página também tiver o backend rodando localmente — ok para dev, não para uso real)
 
 ---
 
@@ -57,8 +63,8 @@ Substitua pelo seu backend real quando souber:
 2. **Vá em Settings → Pages** → mude para **GitHub Actions**
 3. **Pronto** — Actions rodam automaticamente, Pages ativado
 
-Quando Fase 4 estiver pronta (frontend + backend em main):
-- `backend-test.yml` roda → testa
+A partir de agora, todo push em `master`:
+- `backend-test.yml` roda → testa (33+ testes)
 - `frontend-deploy.yml` roda → constrói e publica em GitHub Pages
 - Sem nenhuma ação manual
 

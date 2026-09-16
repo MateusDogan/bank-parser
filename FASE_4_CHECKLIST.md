@@ -1,8 +1,13 @@
 # Fase 4-MVP: Checklist de Configurações e Arquivos
 
-## Status: PRONTO PARA COMEÇAR
+## Status: ✅ CONCLUÍDA (2026-09-16)
 
-Tudo que segue lista o que **JÁ EXISTE** vs o que **PRECISA SER CRIADO**.
+Este documento foi o guia de execução; ficou como registro histórico. Para o estado atual do
+projeto, ver `DEVELOPMENT_PLAN.md` (seção "Fase 4-MVP") e `SETUP_MVP.md` (como rodar).
+
+Resultado: 33 testes de backend passando, `npm run build` do frontend sem erros, GitHub Actions
+configurado (test + deploy). Pendência única: teste manual end-to-end com Docker rodando (Postgres
++ MinIO reais), que depende do Docker Desktop nesta máquina.
 
 ---
 

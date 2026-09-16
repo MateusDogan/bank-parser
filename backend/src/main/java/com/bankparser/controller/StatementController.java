@@ -64,6 +64,14 @@ public class StatementController {
                 processingService.findById(organizationProvider.currentOrganizationId(), id));
     }
 
+    @GetMapping
+    public List<StatementResponse> findAll() {
+        return processingService.findAll(organizationProvider.currentOrganizationId())
+                .stream()
+                .map(StatementResponse::from)
+                .toList();
+    }
+
     @GetMapping("/{id}/export")
     public ResponseEntity<Resource> export(@PathVariable UUID id,
                                            @RequestParam(defaultValue = "csv") String format) throws IOException {

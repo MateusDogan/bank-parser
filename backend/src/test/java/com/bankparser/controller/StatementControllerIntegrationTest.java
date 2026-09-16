@@ -142,6 +142,16 @@ class StatementControllerIntegrationTest {
     }
 
     @Test
+    void findAllListsStatementsFromCurrentOrganization() throws Exception {
+        uploadAndGetId();
+
+        mockMvc.perform(get("/api/statements"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].clientName").value("Cliente Teste"));
+    }
+
+    @Test
     void rejectsUnreadablePdfWithoutPersistingAnything() throws Exception {
         mockMvc.perform(uploadOf("isso nao e um pdf".getBytes(StandardCharsets.UTF_8), client.getId()))
                 .andExpect(status().isUnprocessableEntity());

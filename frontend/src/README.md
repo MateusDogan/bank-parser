@@ -1,12 +1,20 @@
 # Frontend Source
 
-**Fase 5 do DEVELOPMENT_PLAN.md** — implementar aqui.
+**Fase 4-MVP** — React minimalista: upload de PDF e download de CSV, nada mais.
+Paginação, filtros, dashboard e gráficos ficam para uma fase de expansão futura
+(o `recharts` já está no `package.json` esperando por isso, mas não é usado ainda).
 
-Estrutura esperada:
 ```
 src/
-├── pages/          # upload, statements, transactions, dashboard
-├── components/     # UploadDropZone, StatementTable, TransactionTable, Charts
-├── services/       # api.js (chamadas para o backend)
-└── App.jsx
+├── main.jsx          # entry point, HashRouter (GitHub Pages nao suporta BrowserRouter sem config extra)
+├── App.jsx            # layout + 2 rotas
+├── pages/
+│   ├── Upload.jsx      # cadastro rapido de cliente + upload de PDF
+│   └── Statements.jsx  # lista de extratos + download CSV
+├── services/
+│   └── api.js          # unico ponto de chamadas HTTP (axios)
+└── index.css
 ```
+
+**`VITE_API_URL`**: variável de build que aponta pro backend. Ver `.env.example`.
+Em dev local, não precisa configurar nada — o default já é `http://localhost:8080`.

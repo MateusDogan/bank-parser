@@ -17,12 +17,14 @@
 | 0/1 | Parser em Java (isolado) | 4-5 dias | Refatorar lógica Python → Java, validar com testes "golden" | ✅ Completa |
 | 2 | Infraestrutura + Multi-tenant | 2-3 dias | Docker Compose, Postgres, modelo de dados | ✅ Completa |
 | 3 | Integração Parser → API + Storage | 3-4 dias | Controllers, Storage MinIO, persistência | ✅ Completa |
-| 4 | API Completa | 2-3 dias | CRUD clients, statements, transactions, paginação | ⏳ Próxima |
-| 5 | Frontend React | 3-5 dias | Upload, dashboard, download CSV/Excel | ⏳ Depois de 4 |
-| 6 | Testes e Deployment Local | 2-3 dias | Testes integrados, backup, documentação | ⏳ Depois de 5 |
-| 0.5 | Code Review + CI/CD (NOVA) | 1-2 dias | Parser rastreável, golden files, GitHub Actions | ⏳ Depois de 6 |
+| **4-MVP** | **Backend + Frontend mínimos** | **3 dias** | **Cadastro de clientes, upload, listagem, download CSV — pronto pro escritório usar** | **✅ Completa** |
+| 4 | API Completa (expansão) | 2-3 dias | Paginação, filtros, relatórios — só se o MVP mostrar necessidade | ⏳ Opcional |
+| 5 | Frontend React (expansão) | 3-5 dias | Dashboard, gráficos, histórico avançado | ⏳ Opcional |
+| 6 | Testes e Deployment Local | 2-3 dias | Testes E2E, backup, documentação de produção | ⏳ Opcional |
+| 0.5 | Code Review + CI/CD | 1-2 dias | Parser rastreável, golden files, GitHub Actions | ✅ CI/CD feito; rastreabilidade opcional |
 
-**Total Estimado**: 23-30 dias até MVP com Parser Changeability garantido
+**MVP pronto**: 3 dias (Fase 4-MVP). As fases seguintes são expansão, não bloqueio — o escritório já
+pode usar o sistema. Ver `FASE_4_CHECKLIST.md` e `SETUP_MVP.md` para detalhes de execução.
 
 ---
 
@@ -240,7 +242,46 @@ Falta apenas o caminho manual contra o MinIO real (`docker-compose up`, upload, 
 
 ---
 
-## Fase 4: API Completa
+## Fase 4-MVP: Backend + Frontend Mínimos
+
+**Objetivo**: Upload de PDF → download de CSV, utilizável pelo escritório. Sem paginação, filtros,
+dashboard — só o essencial, porque o volume real (poucos clientes, poucos uploads/dia) não justifica.
+
+### Tarefas
+
+- [x] `ClientController`: POST `/api/clients` (cria, valida nome/documento, rejeita CNPJ duplicado
+      com 409), GET `/api/clients` (lista tudo, sem paginação)
+- [x] `dto/ClientRequest.java`, `dto/ClientResponse.java`
+- [x] `exception/DuplicateClientException.java` + handler no `GlobalExceptionHandler`
+- [x] Validação de entrada via Bean Validation (`spring-boot-starter-validation` adicionado ao pom)
+- [x] `GET /api/statements` (lista, sem paginação) — necessário para a tela "Meus Extratos"
+- [x] Frontend React + Vite: `Upload.jsx` (cadastro rápido de cliente + envio de PDF) e
+      `Statements.jsx` (lista + download de CSV)
+- [x] `HashRouter` em vez de `BrowserRouter`: GitHub Pages não redireciona toda rota para
+      `index.html`, então um refresh em `/statements` daria 404 com histórico normal
+- [x] `.github/workflows/frontend-deploy.yml` e `backend-test.yml`
+- [x] `SETUP_MVP.md`, `GITHUB_SETUP.md`
+
+> **Sem `ClientService` intermediário**: a lógica (checar duplicidade, salvar) cabe em poucas linhas
+> no controller. Um service só pra isso seria abstração sem função — camada extra que nada abstrai.
+>
+> **CNPJ sem validação de dígito verificador**: valida presença e normaliza (remove máscara), não
+> confere o dígito. MVP mínimo; adicionar depois se um CNPJ inválido causar problema real.
+>
+> **Node.js instalado nesta máquina** (LTS via winget) para testar o build do frontend — não havia
+> antes. `npm run build` gera ~221KB (74KB gzip), validado localmente.
+
+### Checklist de Conclusão
+
+- [x] `mvn test` passa (33 testes: 28 anteriores + 4 de `ClientController` + 1 de listagem de statements)
+- [x] `npm run build` gera `frontend/dist/` sem erros
+- [x] Frontend renderiza e trata erro de rede corretamente (testado com backend desligado)
+- [ ] Fluxo end-to-end real (Docker + backend + frontend juntos) — **pendente**, ainda depende do
+      Docker Desktop nesta máquina. Ver `SETUP_MVP.md` para rodar quando disponível.
+
+---
+
+## Fase 4: API Completa (Expansão, Opcional)
 
 **Objetivo**: Endpoints de CRUD, paginação, filtros. API pronta para consumir do frontend.
 
@@ -418,8 +459,10 @@ tipo de transação.
 - [ ] **`TransactionType` enum**: `ENTRADA`/`SAIDA`, substitui String em `Transaction.type`
 - [ ] **Golden file**: `stone-real-264-expected.json` (saída esperada, JSON não PDF)
 - [ ] **`BalanceValidationService`**: Valida saldo (informativo, não bloqueia), marca statements com flag
-- [ ] **CI/CD GitHub Actions**: test.yml (cobertura 75%+), lint.yml (SpotBugs), build.yml
-- [ ] **README: seção "Parser Changeability"**: Como trocar parser com segurança
+- [x] **CI/CD GitHub Actions**: `backend-test.yml` (roda `mvn test` em todo push) e
+      `frontend-deploy.yml` (build + deploy em GitHub Pages) — feitos junto com a Fase 4-MVP.
+      Falta: lint.yml (SpotBugs) e gate de cobertura mínima.
+- [x] **README: seção "Parser Changeability"**: Risco documentado (já feito, ver `README.md`)
 
 ### Verificação
 
@@ -448,10 +491,11 @@ tipo de transação.
 | 0/1 | ✅ Concluída | Parser Java funcional. Validado contra extrato Stone real: 264/264 transações, descoberto defeito em 11 linhas (4%) — tarifa atribuída errado em operações groupadas. |
 | 2 | ✅ Concluída | Schema + entidades + repositories, validados contra Postgres 15 real. Falta só validar o `docker-compose` (Docker não configurado na máquina). |
 | 3 | ✅ Concluída | Upload → parse → persistência → export CSV, 28/28 testes. MinIO coberto via endpoint S3 embarcado; falta o teste manual contra o MinIO real. |
-| 4 | ⏳ Próxima | Segue plano original (DEVELOPMENT_PLAN.md). Depois: Fase 5. |
-| 5 | ⏳ Depois de 4 | Frontend React (plano original). Depois: Fase 6. |
-| 6 | ⏳ Depois de 5 | E2E tests + docs (plano original). Depois: Fase 0.5. |
-| 0.5 | 🔄 Planejada | Rastreabilidade (parser_version), golden files, enum para tipo, CI/CD. Começa após Fase 6. |
+| **4-MVP** | **✅ Concluída** | **`ClientController` (POST/GET), `GET /api/statements`, frontend React (Upload + Statements), GitHub Actions (test + deploy Pages). 33/33 testes. Falta só o teste manual end-to-end com Docker.** |
+| 4 (expansão) | ⏳ Opcional | Paginação, filtros, relatórios — só se o uso real do MVP mostrar necessidade. |
+| 5 (expansão) | ⏳ Opcional | Dashboard, gráficos. |
+| 6 | ⏳ Opcional | E2E tests, backup scripts, docs de produção. |
+| 0.5 | 🔄 Parcial | CI/CD feito (test + deploy). Falta: `parser_version`, golden files, enum `TransactionType`, `BalanceValidationService`. |
 
 ---
 

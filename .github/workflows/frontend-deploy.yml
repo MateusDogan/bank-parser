@@ -32,7 +32,7 @@ jobs:
 
       - name: Build React app
         env:
-          REACT_APP_API_URL: https://seu-backend-url.com
+          VITE_API_URL: ${{ vars.BACKEND_URL || 'http://localhost:8080' }}
         run: cd frontend && npm run build
 
       - name: Upload artifact

@@ -12,6 +12,7 @@ import com.bankparser.repository.ClientRepository;
 import com.bankparser.repository.StatementRepository;
 import com.bankparser.repository.TransactionRepository;
 import com.bankparser.storage.StorageService;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -84,6 +85,12 @@ public class StatementProcessingService {
     public Statement findById(UUID organizationId, UUID statementId) {
         return statementRepository.findByOrganizationIdAndId(organizationId, statementId)
                 .orElseThrow(() -> new ResourceNotFoundException("Extrato nao encontrado: " + statementId));
+    }
+
+    // Sem paginacao no MVP: volume de extratos de um escritorio e pequeno.
+    @Transactional(readOnly = true)
+    public List<Statement> findAll(UUID organizationId) {
+        return statementRepository.findByOrganizationId(organizationId, Pageable.unpaged()).getContent();
     }
 
     /** Transacoes na ordem original do PDF, para exportacao. */
