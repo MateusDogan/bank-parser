@@ -12,16 +12,17 @@
 
 ## Resumo de Fases
 
-| Fase | Nome | Duração | Objetivo |
-|------|------|---------|----------|
-| 0/1 | Parser em Java (isolado) | 4-5 dias | Refatorar lógica Python → Java, validar com testes "golden" |
-| 2 | Infraestrutura + Multi-tenant | 2-3 dias | Docker Compose, Postgres, modelo de dados |
-| 3 | Integração Parser → API + Storage | 3-4 dias | Controllers, Storage MinIO, persistência |
-| 4 | API Completa | 2-3 dias | CRUD clients, statements, transactions, paginação |
-| 5 | Frontend React | 3-5 dias | Upload, dashboard, download CSV/Excel |
-| 6 | Testes e Deployment Local | 2-3 dias | Testes integrados, backup, documentação |
+| Fase | Nome | Duração | Objetivo | Status |
+|------|------|---------|----------|--------|
+| 0/1 | Parser em Java (isolado) | 4-5 dias | Refatorar lógica Python → Java, validar com testes "golden" | ✅ Completa |
+| 2 | Infraestrutura + Multi-tenant | 2-3 dias | Docker Compose, Postgres, modelo de dados | ✅ Completa |
+| 3 | Integração Parser → API + Storage | 3-4 dias | Controllers, Storage MinIO, persistência | ✅ Completa |
+| 4 | API Completa | 2-3 dias | CRUD clients, statements, transactions, paginação | ⏳ Próxima |
+| 5 | Frontend React | 3-5 dias | Upload, dashboard, download CSV/Excel | ⏳ Depois de 4 |
+| 6 | Testes e Deployment Local | 2-3 dias | Testes integrados, backup, documentação | ⏳ Depois de 5 |
+| 0.5 | Code Review + CI/CD (NOVA) | 1-2 dias | Parser rastreável, golden files, GitHub Actions | ⏳ Depois de 6 |
 
-**Total Estimado**: 16-23 dias até MVP funcional no escritório
+**Total Estimado**: 23-30 dias até MVP com Parser Changeability garantido
 
 ---
 
@@ -402,6 +403,33 @@ frontend/
 
 ---
 
+## Fase 0.5: Code Review, CI/CD e Rastreabilidade do Parser
+
+**Objetivo**: Garantir que trocar o parser NÃO quebra produção; saber QUAIS statements foram afetados.
+
+**Problema descoberto**: Teste de saldo revelou que 11 de 264 linhas (4%) têm atribuição errada de "Tarifa" em 
+operações de boleto groupadas. Isso passou silenciosamente porque os testes usam PDFs sintéticos. **Solução**: 
+golden files (saída esperada do parser contra extratos reais), `parser_version` pra rastreabilidade, enum pra 
+tipo de transação.
+
+### Tarefas
+
+- [ ] **`parser_version` em `statements`**: Adicionar coluna (Flyway), entidade, e `BankStatementParser.parserVersion()`
+- [ ] **`TransactionType` enum**: `ENTRADA`/`SAIDA`, substitui String em `Transaction.type`
+- [ ] **Golden file**: `stone-real-264-expected.json` (saída esperada, JSON não PDF)
+- [ ] **`BalanceValidationService`**: Valida saldo (informativo, não bloqueia), marca statements com flag
+- [ ] **CI/CD GitHub Actions**: test.yml (cobertura 75%+), lint.yml (SpotBugs), build.yml
+- [ ] **README: seção "Parser Changeability"**: Como trocar parser com segurança
+
+### Verificação
+
+- [ ] `mvn test` passa (28+ testes, cobertura > 75%)
+- [ ] GitHub Actions roda em todo push; main rejeita merges se falhar
+- [ ] Golden file diff mostra que APENAS as 3 linhas esperadas mudaram vs real anterior
+- [ ] `SELECT COUNT(*) FROM statements WHERE parser_version = '1.0'` funciona (rastreabilidade)
+
+---
+
 ## Próximas Fases (futuro, não agora)
 
 - **Fase 7**: Autenticação (Spring Security + JWT ou OAuth)
@@ -417,12 +445,13 @@ frontend/
 
 | Fase | Status | Notas |
 |------|--------|-------|
-| 0/1 | ✅ Concluída | Parser Java funcional. Validado contra extrato Stone real: 264/264 transações idênticas ao parser Python. |
+| 0/1 | ✅ Concluída | Parser Java funcional. Validado contra extrato Stone real: 264/264 transações, descoberto defeito em 11 linhas (4%) — tarifa atribuída errado em operações groupadas. |
 | 2 | ✅ Concluída | Schema + entidades + repositories, validados contra Postgres 15 real. Falta só validar o `docker-compose` (Docker não configurado na máquina). |
 | 3 | ✅ Concluída | Upload → parse → persistência → export CSV, 28/28 testes. MinIO coberto via endpoint S3 embarcado; falta o teste manual contra o MinIO real. |
-| 4 | ⏳ Pendente | |
-| 5 | ⏳ Pendente | |
-| 6 | ⏳ Pendente | |
+| 4 | ⏳ Próxima | Segue plano original (DEVELOPMENT_PLAN.md). Depois: Fase 5. |
+| 5 | ⏳ Depois de 4 | Frontend React (plano original). Depois: Fase 6. |
+| 6 | ⏳ Depois de 5 | E2E tests + docs (plano original). Depois: Fase 0.5. |
+| 0.5 | 🔄 Planejada | Rastreabilidade (parser_version), golden files, enum para tipo, CI/CD. Começa após Fase 6. |
 
 ---
 
