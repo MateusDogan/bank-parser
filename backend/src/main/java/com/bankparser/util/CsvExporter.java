@@ -67,7 +67,8 @@ public class CsvExporter {
 
     private static String formatNumber(java.math.BigDecimal value) {
         if (value == null) return "";
-        return value.stripTrailingZeros().toPlainString();
+        // Accounting standard: always 2 decimal places (e.g., 3000.00, 0.01)
+        return value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
     }
 
     private static String sanitizeCsvField(String field) {
