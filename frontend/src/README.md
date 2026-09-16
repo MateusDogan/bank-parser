@@ -1,6 +1,10 @@
 # Frontend Source
 
-**Fase 4-MVP** — React minimalista: upload de PDF e download de CSV, nada mais.
+> **Andaime.** Existe para exercitar a API enquanto o modelo de tela novo não
+> chega, e será substituído na Fase 4 (ver `DEVELOPMENT_PLAN.md`). Não vale
+> investir aqui além do mínimo para testar o backend.
+
+React minimalista: upload de PDF e download de CSV, nada mais.
 Paginação, filtros, dashboard e gráficos ficam para uma fase de expansão futura
 (o `recharts` já está no `package.json` esperando por isso, mas não é usado ainda).
 

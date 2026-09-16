@@ -33,7 +33,7 @@ bank-parser/
 ## Modelo de Dados (Multi-tenant)
 ```
 Organization (tenant)     → hoje: 1 registro (o escritório). Amanhã: múltiplos.
-  └── User                → funcionários (auth adicionada na Fase 7)
+  └── User                → funcionários (tabela existe; auth só na Fase 10)
   └── Client              → CNPJ atendido pelo escritório
         └── Statement     → PDF enviado
               └── Transaction → linha extraída
@@ -47,38 +47,49 @@ Organization (tenant)     → hoje: 1 registro (o escritório). Amanhã: múltip
 2. **Storage abstrato** (`StorageService` interface) — implementação MinIO hoje, trocável por S3/R2 depois sem mudar código de negócio
 3. **Parser isolado com testes "golden"** — PDFs reais de teste com output esperado documentado, antes de integrar com API/DB
 4. **DTOs separados de Entities JPA** — contrato de API não quebra quando o schema do banco muda
-5. **Sem autenticação no MVP** — mas controllers já estruturados para receber contexto de usuário (preparado para Fase 7)
+5. **Sem autenticação por enquanto** — `CurrentOrganizationProvider` é a costura única: na Fase 10 ele passa a ler do `SecurityContext` e nenhum controller muda. Vale só porque o sistema roda na rede interna do escritório; **expor fora dela obriga a fazer a Fase 10 antes** (ver `DEVELOPMENT_PLAN.md`)
 
 ## Setup Local
 
+Passo a passo detalhado (com troubleshooting) em `SETUP_MVP.md`.
+
 ```bash
 # 1. Subir infraestrutura (Postgres + MinIO)
-docker-compose up -d
+cp .env.example .env      # esse nome exato: e o unico que o Compose le sozinho
+docker compose up -d
 
 # 2. Rodar backend (Spring Boot)
 cd backend
-./mvnw spring-boot:run
+mvn spring-boot:run
 
-# 3. Rodar frontend (React)
+# 3. Rodar frontend (React) — andaime, sera substituido na Fase 4
 cd frontend
 npm install
 npm run dev
 ```
 
+Não há Maven wrapper neste projeto: use o `mvn` instalado na máquina.
+
 ## Rodando Testes
 
 ```bash
-# Backend
 cd backend
-./mvnw test
-
-# Frontend
-cd frontend
-npm test
+mvn test
 ```
 
+Esperado: 43 testes, 2 pulados. Não precisa de Docker — Postgres e um endpoint S3
+rodam embarcados. Os 2 pulados dependem de um extrato real, que nunca é
+versionado:
+
+```bash
+mvn test "-Dbankparser.it.pdf=C:\caminho\para\extrato.pdf"
+```
+
+O frontend tem `vitest` configurado, mas nenhum teste escrito — não vale
+investir enquanto ele for andaime.
+
 ## Antes de Commitar
-- [ ] Testes passam (`./mvnw test` no backend)
+- [ ] Testes passam (`mvn test` no backend)
 - [ ] Sem PDFs reais de clientes commitados (verificar `.gitignore`)
 - [ ] Sem credenciais/senhas hardcoded
 - [ ] `DEVELOPMENT_PLAN.md` atualizado se a fase mudou de status
@@ -86,7 +97,7 @@ npm test
 
 ## Dados Sensíveis
 - PDFs de extratos reais **nunca** são commitados (git-ignored)
-- `.env.local` com credenciais nunca é commitado
+- `.env` com credenciais nunca é commitado
 - Dados de teste usam PDFs sintéticos ou anonimizados quando possível
 
 ---

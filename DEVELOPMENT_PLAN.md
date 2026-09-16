@@ -21,17 +21,17 @@ As decisões de arquitetura que não mudam sem discussão estão no `CLAUDE.md`.
 | 1 | Primeiro uso real | 1–2 dias | Docker na máquina |
 | 2 | Desfazer e recuperar | 2 dias | 1 |
 | 3 | Reenvio e duplicata | 2 dias | 2 |
-| 4 | Autenticação | 3–4 dias | — |
-| 5 | Frontend novo | a definir | modelo de tela |
-| 6 | Conferência do extrato | 2–3 dias | 5 |
-| 7 | Exportação para a contabilidade | 2 dias | feedback da 1 |
-| 8 | Segundo banco | 3–4 dias | — |
-| 9 | Relatórios | 3 dias | 5 |
-| 10 | Operação | 2 dias | 1 |
+| 4 | Frontend novo | a definir | modelo de tela |
+| 5 | Conferência do extrato | 2–3 dias | 4 |
+| 6 | Exportação para a contabilidade | 2 dias | feedback da 1 |
+| 7 | Segundo banco | 3–4 dias | — |
+| 8 | Relatórios | 3 dias | 4 |
+| 9 | Operação | 2 dias | 1 |
+| 10 | Autenticação | 3–4 dias | — |
 | 11 | SaaS | — | tudo acima |
 
 **Independentes do frontend** (dá para tocar enquanto o modelo de tela não
-chega): 1, 2, 3, 4, 7, 8, 10.
+chega): 1, 2, 3, 6, 7, 9, 10.
 
 O frontend React atual é **andaime**: existe para exercitar a API enquanto o
 modelo novo não chega. Não vale investir nele além do mínimo — será substituído
@@ -128,31 +128,13 @@ extratos em silêncio.
 
 ---
 
-## Fase 4 — Autenticação
-
-**Objetivo**: cada pessoa entra com o próprio usuário.
-
-**Entrega**:
-- Spring Security; a entidade `User` e a tabela `users` já existem desde a V1
-- `CurrentOrganizationProvider` passa a ler do `SecurityContext` — a costura foi
-  feita justamente para isso, nenhum controller muda
-- Cadastro de usuário pelo administrador do escritório
-- Testes de isolamento: usuário de uma organização não alcança dados de outra
-
-**Pronto quando**: derrubar a sessão bloqueia o acesso a toda a API.
-
-**Nota de posição**: se a aplicação for ficar só na rede interna, esta fase pode
-esperar. Se for acessível de fora, **ela vem antes de qualquer outra**.
-
----
-
-## Fase 5 — Frontend novo
+## Fase 4 — Frontend novo
 
 **Objetivo**: substituir o andaime pelo modelo de tela definido por você.
 
-**Entrega**: depende do modelo. O que já está pronto do lado da API:
-listagem de clientes e extratos, upload, download de CSV, e (conforme as fases
-2–4 avancem) PDF original, exclusão e login.
+**Entrega**: depende do modelo. O que já está pronto do lado da API: listagem de
+clientes e extratos, upload, download de CSV, e (conforme as fases 2–3 avancem)
+PDF original, exclusão e aviso de duplicata.
 
 **Pronto quando**: o andaime atual pode ser apagado do repositório.
 
@@ -160,16 +142,20 @@ listagem de clientes e extratos, upload, download de CSV, e (conforme as fases
 
 ---
 
-## Fase 6 — Conferência do extrato
+## Fase 5 — Conferência do extrato
 
 **Objetivo**: transformar `validation_flags` em trabalho de conferência de
 verdade, em vez de um campo que ninguém olha.
 
 **Entrega**:
 - As divergências de saldo aparecem na tela, na linha certa
-- Marcar um extrato como conferido (quem e quando)
+- Marcar um extrato como conferido, com data
 - Corrigir uma transação manualmente, com registro de que foi editada — o valor
   original nunca é sobrescrito sem trilha
+
+**Decisão pendente**: sem autenticação (Fase 10), "conferido" não tem *quem* —
+só *quando*. Ou se aceita a trilha sem autoria, ou esta fase espera a 10. Decidir
+ao chegar aqui, não antes.
 
 **Pronto quando**: dá para saber, olhando a lista, quais extratos precisam de
 atenção humana.
@@ -179,7 +165,7 @@ ruído?
 
 ---
 
-## Fase 7 — Exportação para a contabilidade
+## Fase 6 — Exportação para a contabilidade
 
 **Objetivo**: exportar no formato que o sistema contábil do escritório aceita.
 
@@ -194,7 +180,7 @@ ruído?
 
 ---
 
-## Fase 8 — Segundo banco
+## Fase 7 — Segundo banco
 
 **Objetivo**: provar que trocar/adicionar parser não mexe no resto.
 
@@ -211,7 +197,7 @@ mudar, a arquitetura falhou e vale parar para entender por quê.*
 
 ---
 
-## Fase 9 — Relatórios
+## Fase 8 — Relatórios
 
 **Objetivo**: responder perguntas que hoje exigem abrir o CSV no Excel.
 
@@ -226,7 +212,7 @@ exportar nada.
 
 ---
 
-## Fase 10 — Operação
+## Fase 9 — Operação
 
 **Objetivo**: o sistema sobreviver a uma semana sem ninguém olhando.
 
@@ -237,6 +223,32 @@ exportar nada.
 - Procedimento de atualização sem perder dados
 
 **Pronto quando**: restaurar do backup num ambiente limpo recupera tudo.
+
+---
+
+## Fase 10 — Autenticação
+
+**Objetivo**: cada pessoa entra com o próprio usuário.
+
+**Entrega**:
+- Spring Security; a entidade `User` e a tabela `users` já existem desde a V1
+- `CurrentOrganizationProvider` passa a ler do `SecurityContext` — a costura foi
+  feita justamente para isso, nenhum controller muda
+- Cadastro de usuário pelo administrador do escritório
+- Testes de isolamento: usuário de uma organização não alcança dados de outra
+
+**Pronto quando**: derrubar a sessão bloqueia o acesso a toda a API.
+
+**Por que tão tarde** (decisão de 2026-09-16): o sistema vai rodar **na rede
+interna do escritório**, não exposto na internet. Isso adia a necessidade, mas
+não a elimina — enquanto não existir login, **qualquer pessoa com acesso à rede
+lê os dados financeiros de todos os clientes**, e nenhuma ação fica atribuída a
+ninguém. É um risco aceito de forma consciente, não um esquecimento.
+
+**O que refaz esta conta**: expor a aplicação fora da rede interna, por qualquer
+motivo (acesso remoto, home office, um cliente querendo consultar o próprio
+extrato). Se isso entrar em pauta, esta fase **vem antes** do que estiver na
+frente dela.
 
 ---
 

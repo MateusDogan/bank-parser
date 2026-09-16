@@ -17,21 +17,24 @@ Plataforma para conversão de extratos bancários (PDF) em dados estruturados, c
 ## Início Rápido
 
 ```bash
-# Subir infraestrutura
-docker-compose up -d
+# Subir infraestrutura (Postgres + MinIO)
+cp .env.example .env
+docker compose up -d
 
 # Backend
-cd backend && ./mvnw spring-boot:run
+cd backend && mvn spring-boot:run
 
 # Frontend
 cd frontend && npm install && npm run dev
 ```
 
 Acesse:
-- Frontend: http://localhost:3000
+- Frontend: http://localhost:5173
 - API: http://localhost:8080
 - MinIO Console: http://localhost:9001
-- pgAdmin: http://localhost:5050
+- pgAdmin: http://localhost:5050 (só com `docker compose --profile tools up -d`)
+
+Passo a passo com troubleshooting em [`SETUP_MVP.md`](./SETUP_MVP.md).
 
 ## Documentação
 
@@ -44,19 +47,25 @@ Acesse:
 
 **Por que importa**: Se o parser for alterado para "corrigir" essa atribuição, como saber se é realmente melhoria ou se quebrou algo? Sem rastreabilidade e golden files, a resposta é "deployou, esperou um dia, percebeu erro em produção, rollback".
 
-**Garantias que virão (Fase 0.5)**:
+**Garantias já implementadas**:
 - `parser_version` em cada Statement: rastreia qual versão do parser processou aquele PDF
-- `stone-real-264-expected.json`: saída esperada do parser para aquele extrato real
-- `BalanceValidationService`: marca Statements com defeitos potenciais pra revisão manual (não bloqueia)
-- CI/CD com golden file diff: toda alteração no parser mostra exatamente quais linhas mudaram
+- `BalanceValidationService`: grava em `validation_flags` quais linhas quebram a continuidade de saldo. Sinaliza, **não bloqueia** — 4% das linhas de um extrato real legítimo quebram esse invariante
+- `TransactionType` enum: o próximo banco fala "Crédito"/"Débito" e mapeia para o mesmo vocabulário, sem mudar o contrato da API
+- `RealStatementRegressionTest`: fixa a baseline conhecida (264 transações, 11 divergências) e falha se qualquer um dos dois mudar
 
-**Procedimento seguro para trocar parser** (quando Fase 0.5 estiver pronta):
-1. Alterar `StoneParser.parserVersion()` e lógica
-2. Rodar `mvn test` — o teste de regressão batará saída atual vs `stone-real-264-expected.json`
-3. Revisar o diff: melhoria ou regressão?
-4. Se melhoria: atualizar o JSON, fazer merge
-5. Rodar `SELECT COUNT(*) FROM statements WHERE parser_version = '1.0'` pra saber quantos Statements antigos são afetados
-6. Deploy monitorado: se houver surpresa, rollback e investiga com dados em mãos
+O golden file em JSON foi **descartado de propósito**: ele compararia a saída
+contra um PDF sintético, de layout perfeito, que por construção não reproduz o
+defeito das 11 linhas. A regressão que vale roda contra o extrato real, que nunca
+é versionado — daí o teste ser pulado quando o arquivo não está na máquina.
+
+**Procedimento para trocar o parser**:
+1. Rodar `mvn test "-Dbankparser.it.pdf=<extrato real>"` **antes** de mexer, para confirmar a baseline
+2. Alterar a lógica e subir `StoneParser.parserVersion()`
+3. Rodar de novo: `RealStatementRegressionTest` falha e diz quais linhas divergem agora
+4. Revisar o diff — melhoria ou regressão?
+5. Se melhoria: atualizar a constante no teste, deliberadamente, no mesmo commit
+6. `SELECT COUNT(*) FROM statements WHERE parser_version = '1.0'` diz quantos extratos já processados foram afetados
+7. Deploy monitorado: se houver surpresa, rollback com os dados em mãos
 
 ## Origem
 
