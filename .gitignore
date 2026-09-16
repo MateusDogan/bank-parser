@@ -1,0 +1,48 @@
+# Dados sensiveis - extratos reais de clientes NUNCA commitados
+**/raw_pdfs/
+**/*.pdf
+!**/src/test/resources/**/*.pdf
+
+# Java / Maven
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+!**/src/test/resources/**/*.jar
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+npm-debug.log*
+
+# Docker volumes locais
+postgres_data/
+minio_data/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.iml
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Backups
+backups/
+*.sql.gz
+*.dump

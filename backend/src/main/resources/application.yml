@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: bank-parser
+
+  # Fase 2+: descomentar quando o DB estiver em uso
+  # datasource:
+  #   url: jdbc:postgresql://localhost:5432/bankparser
+  #   username: ${POSTGRES_USER:bankparser_user}
+  #   password: ${POSTGRES_PASSWORD:bankparser_pass}
+  # jpa:
+  #   hibernate:
+  #     ddl-auto: validate
+  #   properties:
+  #     hibernate:
+  #       format_sql: true
+  # flyway:
+  #   enabled: true
+  #   locations: classpath:db/migration
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.bankparser: DEBUG
