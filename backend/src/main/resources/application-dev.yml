@@ -7,4 +7,5 @@ spring:
 
 logging:
   level:
+    com.bankparser: DEBUG
     org.hibernate.orm.jdbc.bind: TRACE

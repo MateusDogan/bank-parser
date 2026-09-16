@@ -1,4 +1,7 @@
-version: '3.8'
+# Por padrao sobem apenas postgres e minio, que e o que o backend rodando por
+# `mvn spring-boot:run` precisa. Os extras ficam atras de profiles:
+#   docker compose --profile tools up -d   -> inclui o pgAdmin
+#   docker compose --profile full  up -d   -> inclui a API em container
 
 services:
   postgres:
@@ -18,12 +21,15 @@ services:
       timeout: 5s
       retries: 5
 
+  # Ferramenta de inspecao, nao dependencia da aplicacao: fica fora do "up"
+  # padrao para nao expor um painel com senha fixa sem ninguem ter pedido.
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: bankparser-pgadmin
+    profiles: [tools]
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@bankparser.local
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@bankparser.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
     ports:
       - "5050:80"
     depends_on:
@@ -47,24 +53,30 @@ services:
       timeout: 5s
       retries: 5
 
-  # A API (Spring Boot) sera adicionada na Fase 3, apos o parser (Fase 0/1)
-  # e a infraestrutura de dados (Fase 2) estarem prontas.
-  # api:
-  #   build: ./backend
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-bankparser}
-  #     SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-bankparser_user}
-  #     SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-bankparser_pass}
-  #     MINIO_ENDPOINT: http://minio:9000
-  #     MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-  #     MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
+  # Para desenvolver, prefira `mvn spring-boot:run` (reinicia sem rebuildar a
+  # imagem). Este servico existe para o dia de colocar no servidor do escritorio.
+  api:
+    build: ./backend
+    container_name: bankparser-api
+    profiles: [full]
+    environment:
+      # Nomes conferem com os lidos em backend/src/main/resources/application.yml.
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-bankparser}
+      POSTGRES_USER: ${POSTGRES_USER:-bankparser_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bankparser_pass}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_BUCKET_STATEMENTS: ${MINIO_BUCKET_STATEMENTS:-bank-statements}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
 
 volumes:
   postgres_data:

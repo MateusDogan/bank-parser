@@ -115,6 +115,18 @@ class StatementControllerIntegrationTest {
     }
 
     @Test
+    void uploadRecordsParserVersionAndBalanceCheck() throws Exception {
+        // Os valores do PDF sintetico foram escolhidos para exercitar a extracao,
+        // nao para fechar contabilmente: 32321.29 + (-300.00) nao da 2321.30, e a
+        // checagem de saldo tem que acusar exatamente a linha 0 por isso.
+        mockMvc.perform(uploadOf(SyntheticStatementPdf.withTwoTransactions(), client.getId()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.parserVersion").value("1.0"))
+                .andExpect(jsonPath("$.validationFlags")
+                        .value("1 divergencia(s) de saldo nas linhas: 0"));
+    }
+
+    @Test
     void exportReturnsCsvInPdfOrder() throws Exception {
         UUID statementId = uploadAndGetId();
 

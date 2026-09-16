@@ -12,15 +12,25 @@ Como rodar o MVP (upload de PDF → download de CSV) na sua máquina.
 ## 1. Infraestrutura (Postgres + MinIO)
 
 ```bash
-cp .env.example .env.local
-# edite .env.local se quiser trocar as senhas padrao
-docker-compose up -d
+cp .env.example .env
+# edite .env se quiser trocar as senhas padrao
+docker compose up -d
 ```
+
+> O arquivo precisa se chamar **`.env`** — é o único que o Docker Compose lê
+> sozinho. Com outro nome (`.env.local`, por exemplo) ele sobe silenciosamente
+> com as senhas padrão. Os dois nomes já estão no `.gitignore`.
 
 Confirma que subiu:
 ```bash
-docker-compose ps
-# postgres, pgadmin e minio devem aparecer como "healthy" ou "running"
+docker compose ps
+# postgres e minio devem aparecer como "healthy"
+```
+
+O pgAdmin não sobe por padrão (é ferramenta de inspeção, com senha fixa). Quando
+precisar dele, em `localhost:5050`:
+```bash
+docker compose --profile tools up -d
 ```
 
 ## 2. Backend
@@ -59,8 +69,16 @@ cd backend
 mvn test
 ```
 
-Esperado: 33+ testes passando. Não precisa do Docker rodando — os testes usam
+Esperado: 43 testes, 2 pulados. Não precisa do Docker rodando — os testes usam
 Postgres e um endpoint S3 embarcados (sem daemon).
+
+Os 2 pulados dependem de um extrato real, que nunca é versionado. Para rodá-los:
+```bash
+mvn test "-Dbankparser.it.pdf=C:\caminho\para\extrato.pdf"
+```
+Vale a pena quando você mexer no parser: `RealStatementRegressionTest` compara a
+saída contra a baseline conhecida (264 transações, 11 divergências de saldo) e
+falha se qualquer um dos dois mudar.
 
 ## Fluxo completo (manual)
 

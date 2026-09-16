@@ -43,4 +43,6 @@ server:
 
 logging:
   level:
-    com.bankparser: DEBUG
+    # DEBUG fica no perfil dev (application-dev.yml); em producao ele vazaria
+    # documento e valor de cliente para o log.
+    com.bankparser: INFO

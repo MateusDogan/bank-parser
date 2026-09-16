@@ -29,7 +29,7 @@ jobs:
           cache: maven
 
       - name: Run tests
-        run: cd backend && mvn clean test
+        run: cd backend && mvn -B clean test
 
       - name: Upload coverage (optional)
         if: always()
