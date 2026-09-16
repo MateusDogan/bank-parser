@@ -1,7 +1,15 @@
 # Repositories
 
-**Fase 2 do DEVELOPMENT_PLAN.md** — implementar aqui.
+**Fase 2 do DEVELOPMENT_PLAN.md — concluída.**
 
-`JpaRepository` para cada entidade em `entity/`: `OrganizationRepository`, `ClientRepository`, `StatementRepository`, `TransactionRepository`.
+`OrganizationRepository`, `UserRepository`, `ClientRepository`, `StatementRepository`,
+`TransactionRepository`.
 
-Métodos de busca devem sempre aceitar `organizationId` como filtro (ex.: `findByOrganizationIdAndClientId(...)`), mesmo com uma única Organization hoje.
+**Regra**: todo método de busca aceita `organizationId` (ex.: `findByOrganizationIdAndId(...)`),
+mesmo com uma única Organization hoje. `OrganizationRepository` é a exceção — ele *é* o tenant.
+
+Não é preciso filtrar `deleted` nos métodos: o `@SQLRestriction` nas entidades já exclui as linhas
+removidas de toda query gerada.
+
+Os métodos existentes cobrem o que as Fases 3 e 4 precisam. Filtros mais ricos (por data, valor,
+categoria) entram na Fase 4.

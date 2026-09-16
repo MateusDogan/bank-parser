@@ -91,17 +91,30 @@ backend/
 
 ### Tarefas
 
-- [ ] Docker Compose: PostgreSQL 15 + pgAdmin (dev)
-- [ ] `application.yml` (profiles dev/prod)
-- [ ] Entidades JPA:
-  - [ ] `Organization` (seu escritório, depois mais)
-  - [ ] `User` (funcionários, preparado para auth futura)
-  - [ ] `Client` (CNPJ atendido)
-  - [ ] `Statement` (PDF enviado, metadata)
-  - [ ] `Transaction` (linha extraída)
-- [ ] Migrations Flyway (V1_init_schema.sql)
-- [ ] Repositories (JpaRepository para cada entidade)
-- [ ] Configuração Spring Boot mínima (sem controllers ainda)
+- [x] Docker Compose: PostgreSQL 15 + pgAdmin (dev)
+- [x] `application.yml` (base + profile `dev` com SQL logging)
+- [x] Entidades JPA:
+  - [x] `Organization` (seu escritório, depois mais)
+  - [x] `User` (funcionários, preparado para auth futura)
+  - [x] `Client` (CNPJ atendido)
+  - [x] `Statement` (PDF enviado, metadata)
+  - [x] `Transaction` (linha extraída)
+- [x] Migrations Flyway (`V1__init_schema.sql`, `V2__seed_default_organization.sql`)
+- [x] Repositories (JpaRepository para cada entidade, sempre filtrando por `organizationId`)
+- [x] Configuração Spring Boot mínima (sem controllers ainda)
+
+> **Soft-delete**: todas as entidades herdam `BaseEntity` (id, `createdAt`, `updatedAt`, `deleted`) e usam
+> `@SQLDelete` + `@SQLRestriction` do Hibernate. `repository.delete(x)` vira um `UPDATE ... SET deleted = true`
+> e toda query passa a ignorar a linha automaticamente — sem precisar repetir o filtro em cada método.
+> O índice único de `clients` é parcial (`WHERE deleted = false`), então um CNPJ removido pode ser recadastrado.
+>
+> **`organization_id` denormalizado** em `statements` e `transactions`: o filtro de tenant obrigatório vira um
+> predicado indexado direto, em vez de um join em cadeia até `clients`.
+>
+> **Testes sem Docker**: `SchemaIntegrationTest` sobe um Postgres 15 real (binário embarcado via
+> `io.zonky.test:embedded-postgres`, sem daemon) e roda o contexto Spring inteiro. Como o `application.yml`
+> usa `ddl-auto: validate`, o contexto só sobe se cada campo das entidades bater com a coluna criada pelo
+> Flyway — divergência entre Java e SQL quebra no teste, não em produção.
 
 ### Deliverables
 
@@ -133,11 +146,12 @@ backend/src/main/java/com/bankparser/
 
 ### Checklist de Conclusão
 
-- [ ] `docker-compose up` sobe Postgres + pgAdmin sem erros
-- [ ] Migrations rodam automaticamente (Flyway)
-- [ ] Tables criadas corretamente em Postgres
-- [ ] Spring Boot sobe sem erros (mesmo sem controllers)
-- [ ] pgAdmin acessível em localhost:5050 com dados visíveis
+- [ ] `docker-compose up` sobe Postgres + pgAdmin sem erros — **pendente**: Docker Desktop foi instalado
+      nesta máquina mas não foi configurado (requer aceitar a tela inicial). Validar quando o ambiente estiver pronto.
+- [x] Migrations rodam automaticamente (Flyway) — verificado em `SchemaIntegrationTest`
+- [x] Tables criadas corretamente em Postgres — verificado contra Postgres 15.6 real
+- [x] Spring Boot sobe sem erros (mesmo sem controllers) — contexto completo sobe com `ddl-auto: validate`
+- [ ] pgAdmin acessível em localhost:5050 com dados visíveis — **pendente**, depende do Docker
 
 ---
 
@@ -350,6 +364,9 @@ frontend/
 | **Parser isolado em testes** | Bugs de extração descobertos cedo, não em produção. | Testes "golden" com PDFs reais + saída esperada. |
 | **DTOs separados de Entities** | Contrato de API não muda quando BD muda. | Mais boilerplate agora, menos quebra depois. |
 | **Sem autenticação (por enquanto)** | MVP rápido, adicionada na Fase 7. | Controllers já estruturados para receber User (preparado). |
+| **Soft-delete em tudo** | Auditoria contábil exige que o histórico sobreviva à remoção. | `@SQLDelete` + `@SQLRestriction`; ler linhas removidas exige query nativa. |
+| **Reenvio do mesmo PDF cria novo Statement** | Deduplicar por hash esconderia reenvios legítimos (ex.: extrato corrigido pelo banco). | Quem envia responde pelo reenvio; sem validação de duplicata. |
+| **Logging estruturado adiado** | Sem volume real ainda, seria complexidade especulativa. | Logs simples agora; migrar quando houver produção. |
 
 ---
 
@@ -368,8 +385,8 @@ frontend/
 
 | Fase | Status | Notas |
 |------|--------|-------|
-| 0/1 | ✅ Concluída | Parser Java funcional, 10/10 testes passando. Falta apenas adicionar PDFs "golden" reais (opcional). |
-| 2 | ⏳ Pendente | Próxima fase |
+| 0/1 | ✅ Concluída | Parser Java funcional. Validado contra extrato Stone real: 264/264 transações idênticas ao parser Python. |
+| 2 | ✅ Concluída | Schema + entidades + repositories, 19/19 testes passando contra Postgres 15 real. Falta só validar o `docker-compose` (Docker não configurado na máquina). |
 | 3 | ⏳ Pendente | |
 | 4 | ⏳ Pendente | |
 | 5 | ⏳ Pendente | |
