@@ -13,7 +13,6 @@ import com.bankparser.repository.StatementRepository;
 import com.bankparser.repository.TransactionRepository;
 import com.bankparser.storage.StorageService;
 import com.bankparser.validation.BalanceValidationService;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -102,7 +101,7 @@ public class StatementProcessingService {
     // Sem paginacao no MVP: volume de extratos de um escritorio e pequeno.
     @Transactional(readOnly = true)
     public List<Statement> findAll(UUID organizationId) {
-        return statementRepository.findByOrganizationId(organizationId, Pageable.unpaged()).getContent();
+        return statementRepository.findByOrganizationIdOrderByUploadedAtDesc(organizationId);
     }
 
     /** Transacoes na ordem original do PDF, para exportacao. */

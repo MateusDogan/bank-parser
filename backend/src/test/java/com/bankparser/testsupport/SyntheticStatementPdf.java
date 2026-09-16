@@ -106,6 +106,44 @@ public final class SyntheticStatementPdf {
         }
     }
 
+    /**
+     * Extrato cuja unica transacao tem a coluna de valor ilegivel — simula a
+     * Stone mudando o layout de um jeito que o parser nao acompanha.
+     */
+    public static byte[] withIllegibleAmount() throws IOException {
+        try (PDDocument document = new PDDocument()) {
+            PDPage page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
+            PDFont font = loadUnicodeFont(document);
+
+            try (PDPageContentStream cs = new PDPageContentStream(document, page)) {
+                float y = PDRectangle.A4.getHeight() - 50;
+
+                writeWord(cs, font, "Nome", 40, y);
+                writeWord(cs, font, "Documento", 250, y);
+
+                y -= 20;
+                writeWord(cs, font, "Cliente Teste", 40, y);
+                writeWord(cs, font, DOCUMENT, 300, y);
+
+                y -= 40;
+                writeWord(cs, font, "DATA", 40, y);
+                writeWord(cs, font, "TIPO", 160, y);
+
+                y -= 25;
+                writeWord(cs, font, "26/08/26", 40, y);
+                writeWord(cs, font, "Saída", 160, y);
+                // Sem digitos na faixa X da coluna de valor.
+                writeWord(cs, font, "R$", 280, y);
+                writeWord(cs, font, "—", 320, y);
+                writeWord(cs, font, "R$", 420, y);
+                writeWord(cs, font, "2.321,30", 460, y);
+            }
+
+            return toBytes(document);
+        }
+    }
+
     /** PDF valido mas sem nenhuma linha de transacao reconhecivel. */
     public static byte[] headerOnly() throws IOException {
         try (PDDocument document = new PDDocument()) {

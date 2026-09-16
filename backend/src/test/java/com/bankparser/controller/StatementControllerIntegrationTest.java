@@ -152,6 +152,27 @@ class StatementControllerIntegrationTest {
     }
 
     @Test
+    void findAllReturnsMostRecentUploadFirst() throws Exception {
+        byte[] pdf = SyntheticStatementPdf.withTwoTransactions();
+        mockMvc.perform(uploadOf(pdf, client.getId(), "primeiro.pdf")).andExpect(status().isCreated());
+        mockMvc.perform(uploadOf(pdf, client.getId(), "segundo.pdf")).andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/statements"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].originalFilename").value("segundo.pdf"))
+                .andExpect(jsonPath("$[1].originalFilename").value("primeiro.pdf"));
+    }
+
+    @Test
+    void rejectsTransactionWithIllegibleAmountWithoutPersistingAnything() throws Exception {
+        mockMvc.perform(uploadOf(SyntheticStatementPdf.withIllegibleAmount(), client.getId()))
+                .andExpect(status().isUnprocessableEntity());
+
+        assertThat(statementRepository.count()).isZero();
+        assertThat(transactionRepository.count()).isZero();
+    }
+
+    @Test
     void rejectsUnreadablePdfWithoutPersistingAnything() throws Exception {
         mockMvc.perform(uploadOf("isso nao e um pdf".getBytes(StandardCharsets.UTF_8), client.getId()))
                 .andExpect(status().isUnprocessableEntity());
@@ -192,8 +213,13 @@ class StatementControllerIntegrationTest {
 
     private static org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder
             uploadOf(byte[] pdf, UUID clientId) {
+        return uploadOf(pdf, clientId, "extrato.pdf");
+    }
+
+    private static org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder
+            uploadOf(byte[] pdf, UUID clientId, String filename) {
         MockMultipartFile file = new MockMultipartFile(
-                "file", "extrato.pdf", MediaType.APPLICATION_PDF_VALUE, pdf);
+                "file", filename, MediaType.APPLICATION_PDF_VALUE, pdf);
         var builder = multipart("/api/statements/upload");
         builder.file(file);
         builder.param("clientId", clientId.toString());

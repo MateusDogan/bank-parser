@@ -9,7 +9,6 @@ import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -125,7 +124,7 @@ class SchemaIntegrationTest {
         clientRepository.save(new Client(Organization.DEFAULT_ID, "Cliente A", "11111111111111"));
         clientRepository.save(new Client(other.getId(), "Cliente B", "22222222222222"));
 
-        assertThat(clientRepository.findByOrganizationId(other.getId(), PageRequest.of(0, 10)))
+        assertThat(clientRepository.findByOrganizationIdOrderByNameAsc(other.getId()))
                 .extracting(Client::getName)
                 .containsExactly("Cliente B");
     }

@@ -187,9 +187,16 @@ public class StoneParser implements BankStatementParser {
             }
         }
 
+        // Saldo pode faltar (a coluna e opcional no schema), valor nao: uma
+        // transacao sem valor legivel significa que o layout mudou, e seguir
+        // adiante gravaria um extrato incompleto sem ninguem perceber.
         BigDecimal valor = TransactionExtractor.parseMoney(valorWords.toString());
+        if (valor == null) {
+            throw new StatementParsingException(
+                    "Valor ilegivel na transacao de " + dateText + ": \"" + lineText(line) + "\"");
+        }
         BigDecimal saldo = TransactionExtractor.parseMoney(saldoWords.toString());
-        if (valor != null && "Saída".equals(tipo) && valor.signum() > 0) {
+        if ("Saída".equals(tipo) && valor.signum() > 0) {
             valor = valor.negate();
         }
 

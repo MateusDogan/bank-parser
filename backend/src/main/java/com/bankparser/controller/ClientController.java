@@ -7,7 +7,7 @@ import com.bankparser.exception.DuplicateClientException;
 import com.bankparser.repository.ClientRepository;
 import com.bankparser.service.CurrentOrganizationProvider;
 import jakarta.validation.Valid;
-import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,10 +44,18 @@ public class ClientController {
                     "Ja existe um cliente cadastrado com o documento " + normalizedDocument);
         }
 
-        Client client = clientRepository.save(
-                new Client(organizationId, request.name(), request.document()));
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(ClientResponse.from(client));
+        try {
+            // O check acima nao e atomico: entre ele e o insert, outra requisicao
+            // pode cadastrar o mesmo documento. Quem decide de fato e o indice
+            // unico parcial (uq_clients_org_document), e a violacao dele e a
+            // mesma situacao de negocio — responder 409, nao 500.
+            Client client = clientRepository.saveAndFlush(
+                    new Client(organizationId, request.name(), request.document()));
+            return ResponseEntity.status(HttpStatus.CREATED).body(ClientResponse.from(client));
+        } catch (DataIntegrityViolationException e) {
+            throw new DuplicateClientException(
+                    "Ja existe um cliente cadastrado com o documento " + normalizedDocument);
+        }
     }
 
     // Sem paginacao no MVP: volume de clientes de um escritorio e pequeno.
@@ -55,7 +63,7 @@ public class ClientController {
     @Transactional(readOnly = true)
     public List<ClientResponse> findAll() {
         return clientRepository
-                .findByOrganizationId(organizationProvider.currentOrganizationId(), Pageable.unpaged())
+                .findByOrganizationIdOrderByNameAsc(organizationProvider.currentOrganizationId())
                 .stream()
                 .map(ClientResponse::from)
                 .toList();
