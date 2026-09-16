@@ -2,77 +2,66 @@ package com.bankparser;
 
 import com.bankparser.parser.BankStatementParser;
 import com.bankparser.parser.StoneParser;
-import com.bankparser.parser.dto.ParsedTransaction;
 import com.bankparser.parser.dto.ParsingResult;
+import com.bankparser.util.CsvExporter;
 import org.junit.jupiter.api.Test;
 
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-public class CsvExportIntegrationTest {
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final String PDF_PATH = "C:\\Users\\User\\Workspace\\Projetos\\Parser\\raw_pdfs\\extrato-EC6BB48B-6EB8-49E2-B1D2-EBFF246F8FA7.pdf";
-    private static final String CSV_OUT = "C:\\Users\\User\\Workspace\\Projetos\\Parser\\extracted_csv\\extrato-java-gerado.csv";
+/**
+ * Teste de ponta a ponta do pipeline PDF -> {@link CsvExporter}, executado
+ * apenas quando ha um extrato real disponivel na maquina. O caminho do PDF
+ * vem da propriedade de sistema {@code bankparser.it.pdf} (ex.:
+ * {@code mvn test -Dbankparser.it.pdf=/caminho/extrato.pdf}) e, na ausencia
+ * dela, do fixture convencional em {@code src/test/resources/parser/} — ver
+ * README daquela pasta.
+ *
+ * <p>Sem fixture o teste e ignorado via {@code assumeTrue} em vez de falhar:
+ * extratos reais nao sao versionados, entao qualquer outra maquina (e o CI)
+ * simplesmente nao os tem. A cobertura do parser em si nao depende deste
+ * teste — {@link com.bankparser.parser.StoneParserTest} usa PDFs sinteticos.
+ */
+class CsvExportIntegrationTest {
+
+    private static final String PDF_PATH_PROPERTY = "bankparser.it.pdf";
+    private static final Path DEFAULT_PDF_FIXTURE =
+            Paths.get("src", "test", "resources", "parser", "extrato_stone_01.pdf");
+    private static final Path CSV_OUT =
+            Paths.get("target", "test-output", "extrato-java-gerado.csv");
 
     @Test
     void exportPdfToCsv() throws IOException {
-        try (FileInputStream pdfStream = new FileInputStream(PDF_PATH)) {
+        Path pdf = resolvePdfFixture();
+        assumeTrue(Files.isReadable(pdf),
+                "PDF de fixture ausente (" + pdf + "); defina -D" + PDF_PATH_PROPERTY + " para executar");
+
+        ParsingResult result;
+        try (InputStream pdfStream = Files.newInputStream(pdf)) {
             BankStatementParser parser = new StoneParser();
-            ParsingResult result = parser.parse(pdfStream);
-
-            exportToCsv(result, CSV_OUT);
-
-            System.out.println("\n✓ CSV exportado com sucesso: " + CSV_OUT);
-            System.out.println("  Transações: " + result.transactions().size());
-            System.out.println("  Documento: " + result.metadata().documento());
-            System.out.println("  Emitido em: " + result.metadata().emitidoEm());
+            result = parser.parse(pdfStream);
         }
+
+        CsvExporter.exportToCsv(result, CSV_OUT.toString());
+
+        List<String> lines = Files.readAllLines(CSV_OUT, StandardCharsets.UTF_8);
+        assertThat(lines).isNotEmpty();
+        assertThat(lines.get(0)).isEqualTo("data;tipo;valor;saldo;descricao;detalhe");
+        assertThat(lines).hasSize(result.transactions().size() + 1);
     }
 
-    private void exportToCsv(ParsingResult result, String csvPath) throws IOException {
-        Path path = Paths.get(csvPath);
-        Files.createDirectories(path.getParent());
-
-        try (FileOutputStream fos = new FileOutputStream(csvPath);
-             OutputStreamWriter writer = new OutputStreamWriter(fos, StandardCharsets.UTF_8)) {
-
-            // Add UTF-8 BOM for Excel compatibility (matches Python behavior)
-            writer.write('﻿');
-
-            writer.write("data;tipo;valor;saldo;descricao;detalhe\n");
-
-            List<ParsedTransaction> transactions = result.transactions();
-            for (ParsedTransaction tx : transactions) {
-                String line = String.format("%s;%s;%s;%s;%s;%s\n",
-                        tx.data().format(DATE_FORMATTER),
-                        tx.tipo(),
-                        formatNumber(tx.valor()),
-                        formatNumber(tx.saldo()),
-                        sanitizeCsvField(tx.descricao()),
-                        sanitizeCsvField(tx.detalhe())
-                );
-                writer.write(line);
-            }
-        }
-    }
-
-    private String formatNumber(java.math.BigDecimal value) {
-        if (value == null) return "";
-        // Accounting standard: always 2 decimal places (e.g., 3000.00, 0.01)
-        return value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
-    }
-
-    private String sanitizeCsvField(String field) {
-        if (field == null) return "";
-        return field.replace("\"", "\"\"");
+    private static Path resolvePdfFixture() {
+        String configured = System.getProperty(PDF_PATH_PROPERTY);
+        return configured != null && !configured.isBlank()
+                ? Paths.get(configured)
+                : DEFAULT_PDF_FIXTURE;
     }
 }

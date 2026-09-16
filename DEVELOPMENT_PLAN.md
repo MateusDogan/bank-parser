@@ -161,19 +161,38 @@ backend/src/main/java/com/bankparser/
 
 ### Tarefas
 
-- [ ] Docker Compose: adicionar MinIO container
-- [ ] Interface `StorageService` (contrato abstrato)
-- [ ] Implementação `MinIOStorageService` (upload/download PDFs e CSVs)
-- [ ] Serviço `StatementProcessingService`:
-  - [ ] Recebe PDF + Client ID
-  - [ ] Chama parser (Fase 1)
-  - [ ] Persiste Statement + Transactions no Postgres
-  - [ ] Armazena PDF + CSV gerado no MinIO
-- [ ] Controller `StatementController`:
-  - [ ] POST `/api/statements/upload` (multipart/form-data)
-  - [ ] GET `/api/statements/{id}` (metadata)
-  - [ ] GET `/api/statements/{id}/export?format=csv|excel`
-- [ ] Tratamento de erros (arquivo não encontrado, parsing falhou, etc.)
+- [x] Docker Compose: MinIO container — já existia desde a Fase 0
+- [x] Interface `StorageService` (contrato abstrato, sem tipos do MinIO)
+- [x] Implementação `MinIOStorageService` + `MinIOConfig`/`MinIOProperties`
+- [x] Serviço `StatementProcessingService`:
+  - [x] Recebe PDF + Client ID
+  - [x] Chama parser (Fase 1)
+  - [x] Persiste Statement + Transactions no Postgres
+  - [x] Armazena o PDF no MinIO
+  - [x] Confere o CNPJ do extrato contra o do cliente
+- [x] Controller `StatementController`:
+  - [x] POST `/api/statements/upload` (multipart/form-data)
+  - [x] GET `/api/statements/{id}` (metadata)
+  - [x] GET `/api/statements/{id}/export?format=csv`
+- [x] Tratamento de erros (`GlobalExceptionHandler`)
+
+> **CSV gerado sob demanda**, não guardado no MinIO: o CSV é função das linhas já persistidas, e
+> materializá-lo criaria uma segunda cópia que pode divergir do banco. Só o PDF original vai para o
+> storage. Excel fica para a Fase 4/5, junto dos relatórios.
+>
+> **Ordem de gravação**: o PDF sobe para o storage *antes* do commit. Falha no storage aborta a
+> transação e no pior caso deixa um objeto órfão no bucket — lixo coletável. Na ordem inversa sobraria
+> um `Statement` apontando para arquivo inexistente, que é dado corrompido.
+>
+> **Conferência de documento**: upload com CNPJ divergente do cliente responde **409**. Num escritório
+> contábil, um extrato lançado sob o cliente errado é um erro caro e silencioso. Quando o parser não
+> extrai o documento do cabeçalho, o upload segue sem conferir.
+>
+> **`CurrentOrganizationProvider`**: o `organizationId` sai de um único ponto, que hoje devolve a
+> organização padrão e na Fase 7 passa a ler do `SecurityContext` — nenhum controller muda.
+>
+> **Parser por `bankKey`**: o serviço indexa os `BankStatementParser` disponíveis e o endpoint aceita
+> `bankKey` (default `stone`), então incluir outro banco na Fase 8 não altera o contrato da API.
 
 ### Deliverables
 
@@ -198,12 +217,25 @@ docker-compose.yml (adicionar MinIO)
 
 ### Checklist de Conclusão
 
-- [ ] `docker-compose up` sobe Postgres + MinIO sem erros
-- [ ] POST `/api/statements/upload` aceita PDF, persiste em DB + MinIO
-- [ ] GET `/api/statements/{id}` retorna metadata (fileName, uploadedAt, transactionCount)
-- [ ] GET `/api/statements/{id}/export?format=csv` baixa CSV
-- [ ] Erro claro quando parsing falha (não salva dado errado)
-- [ ] MinIO console acessível (localhost:9001)
+- [ ] `docker-compose up` sobe Postgres + MinIO sem erros — **pendente**, depende do Docker
+- [x] POST `/api/statements/upload` aceita PDF, persiste em DB + storage
+- [x] GET `/api/statements/{id}` retorna metadata (fileName, uploadedAt, transactionCount)
+- [x] GET `/api/statements/{id}/export?format=csv` baixa CSV
+- [x] Erro claro quando parsing falha (422, e nada é gravado — verificado em teste)
+- [ ] MinIO console acessível (localhost:9001) — **pendente**, depende do Docker
+
+**Como isso foi verificado sem Docker** (28 testes, `mvn test`):
+
+- `StatementControllerIntegrationTest` — contexto Spring completo + Postgres embarcado + `MockMvc`:
+  upload de ponta a ponta, export CSV na ordem do PDF, PDF ilegível → 422 sem gravar nada, CNPJ
+  divergente → 409, cliente de outra organização → 404. O `StorageService` aí é uma implementação em
+  memória (`testsupport/InMemoryStorageService`).
+- `MinIOStorageServiceTest` — o `MinIOStorageService` de verdade contra um endpoint S3 embarcado
+  (`com.adobe.testing:s3mock-junit5`, também sem Docker): bucket criado sob demanda, bytes gravados e
+  relidos, remoção. Como o MinIO fala S3, isso cobre o protocolo — não só a chamada de método.
+
+Falta apenas o caminho manual contra o MinIO real (`docker-compose up`, upload, conferir em
+`localhost:9001`), que depende de concluir a configuração do Docker Desktop nesta máquina.
 
 ---
 
@@ -386,8 +418,8 @@ frontend/
 | Fase | Status | Notas |
 |------|--------|-------|
 | 0/1 | ✅ Concluída | Parser Java funcional. Validado contra extrato Stone real: 264/264 transações idênticas ao parser Python. |
-| 2 | ✅ Concluída | Schema + entidades + repositories, 19/19 testes passando contra Postgres 15 real. Falta só validar o `docker-compose` (Docker não configurado na máquina). |
-| 3 | ⏳ Pendente | |
+| 2 | ✅ Concluída | Schema + entidades + repositories, validados contra Postgres 15 real. Falta só validar o `docker-compose` (Docker não configurado na máquina). |
+| 3 | ✅ Concluída | Upload → parse → persistência → export CSV, 28/28 testes. MinIO coberto via endpoint S3 embarcado; falta o teste manual contra o MinIO real. |
 | 4 | ⏳ Pendente | |
 | 5 | ⏳ Pendente | |
 | 6 | ⏳ Pendente | |

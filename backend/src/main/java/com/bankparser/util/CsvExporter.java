@@ -6,9 +6,12 @@ import com.bankparser.parser.dto.ParsedTransaction;
 import com.bankparser.parser.dto.ParsingResult;
 
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,9 +19,21 @@ import java.nio.file.Paths;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-public class CsvExporter {
+/**
+ * Formato CSV do extrato — fonte de verdade unica, usada tanto pela CLI quanto
+ * pelo endpoint de export da API.
+ *
+ * <p>O formato (separador ";", data dd/MM/yyyy, valores com 2 casas) foi
+ * conferido linha a linha contra a saida do parser Python original sobre um
+ * extrato real, entao mudancas aqui mudam o que o escritorio ja consome.
+ */
+public final class CsvExporter {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final String HEADER = "data;tipo;valor;saldo;descricao;detalhe";
+
+    private CsvExporter() {
+    }
 
     public static void main(String[] args) throws IOException {
         if (args.length < 2) {
@@ -34,8 +49,8 @@ public class CsvExporter {
             ParsingResult result = parser.parse(pdfStream);
 
             exportToCsv(result, csvPath);
-            System.out.println("✓ CSV exportado com sucesso: " + csvPath);
-            System.out.println("  Transações: " + result.transactions().size());
+            System.out.println("CSV exportado: " + csvPath);
+            System.out.println("  Transacoes: " + result.transactions().size());
             System.out.println("  Documento: " + result.metadata().documento());
             System.out.println("  Emitido em: " + result.metadata().emitidoEm());
         }
@@ -43,36 +58,46 @@ public class CsvExporter {
 
     public static void exportToCsv(ParsingResult result, String csvPath) throws IOException {
         Path path = Paths.get(csvPath);
-        Files.createDirectories(path.getParent());
+        Path parent = path.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
 
-        try (OutputStreamWriter writer = new OutputStreamWriter(
-                new FileOutputStream(csvPath), StandardCharsets.UTF_8)) {
-
-            writer.write("data;tipo;valor;saldo;descricao;detalhe\n");
-
-            List<ParsedTransaction> transactions = result.transactions();
-            for (ParsedTransaction tx : transactions) {
-                String line = String.format("%s;%s;%s;%s;%s;%s\n",
-                        tx.data().format(DATE_FORMATTER),
-                        tx.tipo(),
-                        formatNumber(tx.valor()),
-                        formatNumber(tx.saldo()),
-                        sanitizeCsvField(tx.descricao()),
-                        sanitizeCsvField(tx.detalhe())
-                );
-                writer.write(line);
-            }
+        try (OutputStream out = Files.newOutputStream(path)) {
+            writeCsv(result.transactions(), out);
         }
     }
 
-    private static String formatNumber(java.math.BigDecimal value) {
-        if (value == null) return "";
-        // Accounting standard: always 2 decimal places (e.g., 3000.00, 0.01)
-        return value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+    /**
+     * Escreve o CSV direto no stream, sem passar por arquivo — e assim que o
+     * endpoint de export responde ao HTTP.
+     *
+     * <p>Nao fecha {@code out}: quem o abriu decide o ciclo de vida dele (o
+     * container fecha o stream da resposta HTTP).
+     */
+    public static void writeCsv(List<ParsedTransaction> transactions, OutputStream out) throws IOException {
+        Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
+        writer.write(HEADER);
+        writer.write('\n');
+
+        for (ParsedTransaction tx : transactions) {
+            writer.write(String.format("%s;%s;%s;%s;%s;%s\n",
+                    tx.data().format(DATE_FORMATTER),
+                    tx.tipo(),
+                    formatNumber(tx.valor()),
+                    formatNumber(tx.saldo()),
+                    sanitizeCsvField(tx.descricao()),
+                    sanitizeCsvField(tx.detalhe())));
+        }
+        writer.flush();
+    }
+
+    private static String formatNumber(BigDecimal value) {
+        // Padrao contabil: sempre 2 casas decimais (3000.00, 0.01).
+        return value == null ? "" : value.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
     private static String sanitizeCsvField(String field) {
-        if (field == null) return "";
-        return field.replace("\"", "\"\"");
+        return field == null ? "" : field.replace("\"", "\"\"");
     }
 }
