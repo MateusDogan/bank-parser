@@ -1,0 +1,39 @@
+name: Backend Tests
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-test.yml'
+  pull_request:
+    branches: [master, main]
+    paths:
+      - 'backend/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java-version: ['17']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java-version }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run tests
+        run: cd backend && mvn clean test
+
+      - name: Upload coverage (optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: backend/target/surefire-reports/
