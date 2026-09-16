@@ -1,5 +1,6 @@
 package com.bankparser.entity;
 
+import com.bankparser.parser.dto.TransactionType;
 import com.bankparser.repository.ClientRepository;
 import com.bankparser.repository.OrganizationRepository;
 import com.bankparser.repository.StatementRepository;
@@ -92,7 +93,7 @@ class SchemaIntegrationTest {
 
         Transaction transaction = new Transaction(statement, 0);
         transaction.setTransactionDate(LocalDate.of(2026, 8, 26));
-        transaction.setType("Saida");
+        transaction.setType(TransactionType.SAIDA);
         transaction.setAmount(new BigDecimal("-300.00"));
         transaction.setBalance(new BigDecimal("2321.30"));
         transaction.setDescription("CLIENTE TESTE LTDA");

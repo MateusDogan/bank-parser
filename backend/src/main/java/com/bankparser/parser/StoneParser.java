@@ -3,6 +3,7 @@ package com.bankparser.parser;
 import com.bankparser.parser.dto.ParsedTransaction;
 import com.bankparser.parser.dto.ParsingResult;
 import com.bankparser.parser.dto.StatementMetadata;
+import com.bankparser.parser.dto.TransactionType;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.springframework.stereotype.Component;
@@ -39,6 +40,11 @@ import java.util.stream.Collectors;
 public class StoneParser implements BankStatementParser {
 
     private static final float Y_TOLERANCE = 2.5f;
+
+    @Override
+    public String parserVersion() {
+        return "1.0";
+    }
 
     private static final Pattern DATE_PATTERN = Pattern.compile("^(\\d{2})/(\\d{2})/(\\d{2})$");
     private static final Pattern EMITIDO_EM_PATTERN =
@@ -253,12 +259,16 @@ public class StoneParser implements BankStatementParser {
             }
 
             result.add(new ParsedTransaction(
-                    core.data(), core.tipo(), core.valor(), core.saldo(),
+                    core.data(), stringToTransactionType(core.tipo()), core.valor(), core.saldo(),
                     descricao.toString().trim(), detalhe.trim()
             ));
         }
 
         return result;
+    }
+
+    private static TransactionType stringToTransactionType(String text) {
+        return "Entrada".equals(text) ? TransactionType.ENTRADA : TransactionType.SAIDA;
     }
 
     /** Remove linhas de descricao consecutivas identicas (artefato de renderizacao em negrito no PDF). */

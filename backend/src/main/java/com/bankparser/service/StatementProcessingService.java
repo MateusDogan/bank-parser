@@ -12,6 +12,7 @@ import com.bankparser.repository.ClientRepository;
 import com.bankparser.repository.StatementRepository;
 import com.bankparser.repository.TransactionRepository;
 import com.bankparser.storage.StorageService;
+import com.bankparser.validation.BalanceValidationService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,12 +35,14 @@ public class StatementProcessingService {
     private final StatementRepository statementRepository;
     private final TransactionRepository transactionRepository;
     private final StorageService storageService;
+    private final BalanceValidationService validationService;
 
     public StatementProcessingService(List<BankStatementParser> parsers,
                                       ClientRepository clientRepository,
                                       StatementRepository statementRepository,
                                       TransactionRepository transactionRepository,
-                                      StorageService storageService) {
+                                      StorageService storageService,
+                                      BalanceValidationService validationService) {
         // Indexar por bankKey deixa o endpoint aceitar o banco como parametro
         // desde ja, entao adicionar outro parser na Fase 8 nao muda o contrato.
         this.parsersByBankKey = parsers.stream()
@@ -48,6 +51,7 @@ public class StatementProcessingService {
         this.statementRepository = statementRepository;
         this.transactionRepository = transactionRepository;
         this.storageService = storageService;
+        this.validationService = validationService;
     }
 
     @Transactional
@@ -68,6 +72,14 @@ public class StatementProcessingService {
         statement.setIssuedAt(result.metadata().emitidoEm());
         statement.setDocument(result.metadata().documento());
         statement.setTransactionCount(result.transactions().size());
+        statement.setParserVersion(parser.parserVersion());
+
+        // Construir transacoes ANTES de salvar, para poderem passar pela validacao.
+        List<Transaction> transactions = toTransactions(statement, result.transactions());
+
+        // Conferir continuidade de saldo (informativo, nao bloqueia).
+        BalanceValidationService.ValidationReport report = validationService.checkBalanceContinuity(transactions);
+        statement.setValidationFlags(report.toStorageSummary());
 
         // Gravar o arquivo antes do commit: uma falha aqui aborta a transacao e
         // no maximo deixa um objeto orfao no bucket. Na ordem inversa, sobraria
@@ -77,7 +89,7 @@ public class StatementProcessingService {
         statement.setStorageKey(objectKey);
 
         statementRepository.save(statement);
-        transactionRepository.saveAll(toTransactions(statement, result.transactions()));
+        transactionRepository.saveAll(transactions);
         return statement;
     }
 

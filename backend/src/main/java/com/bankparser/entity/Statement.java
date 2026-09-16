@@ -63,6 +63,14 @@ public class Statement extends BaseEntity {
     @Column(name = "uploaded_at", nullable = false)
     private Instant uploadedAt = Instant.now();
 
+    /** Versao do parser que processou este Statement (ex.: "1.0"), para auditoria. */
+    @Column(name = "parser_version", length = 10)
+    private String parserVersion;
+
+    /** Resultado da checagem de continuidade de saldo (resumo textual, null se OK). */
+    @Column(name = "validation_flags", columnDefinition = "text")
+    private String validationFlags;
+
     public Statement(UUID organizationId, Client client, String bankKey, String originalFilename) {
         this.organizationId = organizationId;
         this.client = client;

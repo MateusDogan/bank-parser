@@ -15,7 +15,7 @@ import java.time.LocalDate;
  */
 public record ParsedTransaction(
         LocalDate data,
-        String tipo,
+        TransactionType tipo,
         BigDecimal valor,
         BigDecimal saldo,
         String descricao,

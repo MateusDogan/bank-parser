@@ -1,7 +1,10 @@
 package com.bankparser.entity;
 
+import com.bankparser.parser.dto.TransactionType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -39,9 +42,10 @@ public class Transaction extends BaseEntity {
     @Column(name = "transaction_date", nullable = false)
     private LocalDate transactionDate;
 
-    /** "Entrada" ou "Saida", como aparece no extrato. */
+    /** ENTRADA ou SAIDA, persistido como enum name (sem acentuacao). */
     @Column(nullable = false, length = 20)
-    private String type;
+    @Enumerated(EnumType.STRING)
+    private TransactionType type;
 
     /** Positivo para Entrada, negativo para Saida. */
     @Column(nullable = false, precision = 15, scale = 2)

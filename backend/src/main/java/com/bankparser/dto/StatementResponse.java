@@ -19,7 +19,9 @@ public record StatementResponse(
         LocalDate issuedAt,
         String document,
         int transactionCount,
-        Instant uploadedAt
+        Instant uploadedAt,
+        String parserVersion,
+        String validationFlags
 ) {
     public static StatementResponse from(Statement statement) {
         return new StatementResponse(
@@ -31,6 +33,8 @@ public record StatementResponse(
                 statement.getIssuedAt(),
                 statement.getDocument(),
                 statement.getTransactionCount(),
-                statement.getUploadedAt());
+                statement.getUploadedAt(),
+                statement.getParserVersion(),
+                statement.getValidationFlags());
     }
 }

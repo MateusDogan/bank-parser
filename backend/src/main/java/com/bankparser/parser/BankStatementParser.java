@@ -14,6 +14,9 @@ public interface BankStatementParser {
     /** Identificador do banco/layout suportado (ex.: "stone"), usado para roteamento. */
     String bankKey();
 
+    /** Versao do parser (ex.: "1.0"), rastreada em cada Statement para auditoria de mudancas. */
+    String parserVersion();
+
     /**
      * Extrai metadados e transacoes do PDF.
      *
