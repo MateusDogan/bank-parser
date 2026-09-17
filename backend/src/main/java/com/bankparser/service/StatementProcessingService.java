@@ -42,8 +42,6 @@ public class StatementProcessingService {
                                       TransactionRepository transactionRepository,
                                       StorageService storageService,
                                       BalanceValidationService validationService) {
-        // Indexar por bankKey deixa o endpoint aceitar o banco como parametro
-        // desde ja, entao adicionar outro parser na Fase 8 nao muda o contrato.
         this.parsersByBankKey = parsers.stream()
                 .collect(Collectors.toMap(BankStatementParser::bankKey, Function.identity()));
         this.clientRepository = clientRepository;
@@ -73,16 +71,10 @@ public class StatementProcessingService {
         statement.setTransactionCount(result.transactions().size());
         statement.setParserVersion(parser.parserVersion());
 
-        // Construir transacoes ANTES de salvar, para poderem passar pela validacao.
         List<Transaction> transactions = toTransactions(statement, result.transactions());
-
-        // Conferir continuidade de saldo (informativo, nao bloqueia).
         BalanceValidationService.ValidationReport report = validationService.checkBalanceContinuity(transactions);
         statement.setValidationFlags(report.toStorageSummary());
 
-        // Gravar o arquivo antes do commit: uma falha aqui aborta a transacao e
-        // no maximo deixa um objeto orfao no bucket. Na ordem inversa, sobraria
-        // um Statement apontando para um arquivo que nao existe.
         String objectKey = buildObjectKey(organizationId, statement.getId(), originalFilename);
         storageService.upload(objectKey, new ByteArrayInputStream(content), content.length, PDF_CONTENT_TYPE);
         statement.setStorageKey(objectKey);
@@ -98,13 +90,11 @@ public class StatementProcessingService {
                 .orElseThrow(() -> new ResourceNotFoundException("Extrato nao encontrado: " + statementId));
     }
 
-    // Sem paginacao no MVP: volume de extratos de um escritorio e pequeno.
     @Transactional(readOnly = true)
     public List<Statement> findAll(UUID organizationId) {
         return statementRepository.findByOrganizationIdOrderByUploadedAtDesc(organizationId);
     }
 
-    /** Transacoes na ordem original do PDF, para exportacao. */
     @Transactional(readOnly = true)
     public List<ParsedTransaction> transactionsForExport(UUID organizationId, UUID statementId) {
         return transactionRepository

@@ -1,20 +1,10 @@
 package com.bankparser.controller;
 
 import com.bankparser.repository.ClientRepository;
-import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -23,34 +13,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Fluxo de cadastro e listagem de clientes contra um Postgres real embarcado —
- * mesmo padrao de {@link StatementControllerIntegrationTest}.
+ * End-to-end: create and list clients against real embedded Postgres.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-class ClientControllerIntegrationTest {
+class ClientControllerIntegrationTest extends AbstractIntegrationTest {
 
-    private static final EmbeddedPostgres POSTGRES = start();
-
-    private static EmbeddedPostgres start() {
-        try {
-            return EmbeddedPostgres.builder().start();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url",
-                () -> "jdbc:postgresql://localhost:" + POSTGRES.getPort() + "/postgres");
-        registry.add("spring.datasource.username", () -> "postgres");
-        registry.add("spring.datasource.password", () -> "postgres");
-    }
-
-    @Autowired private MockMvc mockMvc;
     @Autowired private ClientRepository clientRepository;
-    @Autowired private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void resetData() {

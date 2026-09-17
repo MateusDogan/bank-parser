@@ -100,7 +100,6 @@ public class StoneParser implements BankStatementParser {
         }
     }
 
-    /** Agrupa palavras de uma pagina em linhas por proximidade vertical (top). */
     static List<List<PositionedWord>> groupLines(List<PositionedWord> pageWords) {
         List<PositionedWord> sorted = new ArrayList<>(pageWords);
         sorted.sort(Comparator.comparingDouble(PositionedWord::top).thenComparingDouble(PositionedWord::x0));
@@ -154,7 +153,6 @@ public class StoneParser implements BankStatementParser {
                 && "TIPO".equals(line.get(1).text());
     }
 
-    /** Dados extraidos apenas da linha central (antes de agregar descricao/detalhe das linhas vizinhas). */
     private record CoreLineData(LocalDate data, String tipo, String inlineText, BigDecimal valor, BigDecimal saldo) {
     }
 

@@ -76,7 +76,6 @@ public class StatementController {
     public ResponseEntity<Resource> export(@PathVariable UUID id,
                                            @RequestParam(defaultValue = "csv") String format) throws IOException {
         UUID organizationId = organizationProvider.currentOrganizationId();
-        // Excel entra na Fase 4/5, junto dos relatorios.
         if (!"csv".equalsIgnoreCase(format)) {
             return ResponseEntity.badRequest().build();
         }

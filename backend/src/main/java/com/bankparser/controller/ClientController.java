@@ -58,7 +58,6 @@ public class ClientController {
         }
     }
 
-    // Sem paginacao no MVP: volume de clientes de um escritorio e pequeno.
     @GetMapping
     @Transactional(readOnly = true)
     public List<ClientResponse> findAll() {

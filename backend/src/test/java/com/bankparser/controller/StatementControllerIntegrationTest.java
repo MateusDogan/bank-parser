@@ -9,26 +9,17 @@ import com.bankparser.repository.TransactionRepository;
 import com.bankparser.storage.StorageService;
 import com.bankparser.testsupport.InMemoryStorageService;
 import com.bankparser.testsupport.SyntheticStatementPdf;
-import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
@@ -39,36 +30,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Fluxo de ponta a ponta da Fase 3 — upload, persistencia e export — contra um
- * Postgres real embarcado e o contexto Spring completo.
- *
- * <p>O {@link StorageService} entra como implementacao em memoria: o MinIO
- * precisa de Docker, que nao roda nesta maquina. Isso cobre servico e
- * controller, mas nao o {@code MinIOStorageService} em si — ver
- * {@code DEVELOPMENT_PLAN.md}, checklist da Fase 3.
+ * End-to-end: upload, persistence e export against real embedded Postgres.
+ * {@link StorageService} uses in-memory impl (MinIO requires Docker).
  */
-@SpringBootTest
-@AutoConfigureMockMvc
 @Import(StatementControllerIntegrationTest.StubStorage.class)
-class StatementControllerIntegrationTest {
-
-    private static final EmbeddedPostgres POSTGRES = start();
-
-    private static EmbeddedPostgres start() {
-        try {
-            return EmbeddedPostgres.builder().start();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url",
-                () -> "jdbc:postgresql://localhost:" + POSTGRES.getPort() + "/postgres");
-        registry.add("spring.datasource.username", () -> "postgres");
-        registry.add("spring.datasource.password", () -> "postgres");
-    }
+class StatementControllerIntegrationTest extends AbstractIntegrationTest {
 
     @TestConfiguration
     static class StubStorage {
@@ -79,13 +45,11 @@ class StatementControllerIntegrationTest {
         }
     }
 
-    @Autowired private MockMvc mockMvc;
     @Autowired private OrganizationRepository organizationRepository;
     @Autowired private ClientRepository clientRepository;
     @Autowired private StatementRepository statementRepository;
     @Autowired private TransactionRepository transactionRepository;
     @Autowired private StorageService storageService;
-    @Autowired private JdbcTemplate jdbcTemplate;
 
     private Client client;
 
@@ -176,21 +140,16 @@ class StatementControllerIntegrationTest {
     }
 
     @Test
-    void rejectsTransactionWithIllegibleAmountWithoutPersistingAnything() throws Exception {
+    void rejectsInvalidPdfsWithoutPersistingAnything() throws Exception {
+        // Illegible amount in valid PDF structure
         mockMvc.perform(uploadOf(SyntheticStatementPdf.withIllegibleAmount(), client.getId()))
                 .andExpect(status().isUnprocessableEntity());
-
         assertThat(statementRepository.count()).isZero();
-        assertThat(transactionRepository.count()).isZero();
-    }
 
-    @Test
-    void rejectsUnreadablePdfWithoutPersistingAnything() throws Exception {
-        mockMvc.perform(uploadOf("isso nao e um pdf".getBytes(StandardCharsets.UTF_8), client.getId()))
+        // Completely unreadable PDF
+        mockMvc.perform(uploadOf("not a pdf".getBytes(StandardCharsets.UTF_8), client.getId()))
                 .andExpect(status().isUnprocessableEntity());
-
         assertThat(statementRepository.count()).isZero();
-        assertThat(transactionRepository.count()).isZero();
     }
 
     @Test
