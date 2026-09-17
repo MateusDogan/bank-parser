@@ -13,10 +13,9 @@ import java.util.List;
  * Extrai palavras posicionadas do PDF, agrupadas por pagina (uma lista por
  * pagina, na ordem do documento — inclusive paginas sem texto).
  *
- * PDFBox nao expõe "palavras" prontas como o pdfplumber; obtemos isso
- * sobrescrevendo {@link #writeString}, que recebe um trecho de texto junto
- * com a posicao de cada caractere, e dividindo esse trecho em palavras nos
- * espacos em branco.
+ * PDFBox fornece posicoes por caractere. Para agrupar em palavras, sobrescrevemos
+ * {@link #writeString}: recebe um trecho de texto com a posicao de cada caractere,
+ * e dividimos nos espacos em branco.
  */
 class PdfWordExtractor extends PDFTextStripper {
 

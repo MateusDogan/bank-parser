@@ -66,7 +66,3 @@ defeito das 11 linhas. A regressão que vale roda contra o extrato real, que nun
 5. Se melhoria: atualizar a constante no teste, deliberadamente, no mesmo commit
 6. `SELECT COUNT(*) FROM statements WHERE parser_version = '1.0'` diz quantos extratos já processados foram afetados
 7. Deploy monitorado: se houver surpresa, rollback com os dados em mãos
-
-## Origem
-
-Este projeto evoluiu de um script Python de conversão PDF→CSV para extratos Stone, sendo reconstruído em Java/Spring Boot para suportar múltiplos clientes e escalar eventualmente para um produto SaaS.

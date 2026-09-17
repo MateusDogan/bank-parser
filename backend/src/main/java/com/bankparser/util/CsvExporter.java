@@ -20,12 +20,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * Formato CSV do extrato — fonte de verdade unica, usada tanto pela CLI quanto
- * pelo endpoint de export da API.
- *
- * <p>O formato (separador ";", data dd/MM/yyyy, valores com 2 casas) foi
- * conferido linha a linha contra a saida do parser Python original sobre um
- * extrato real, entao mudancas aqui mudam o que o escritorio ja consome.
+ * Formato CSV do extrato — separador ";", data dd/MM/yyyy, valores com 2 casas.
+ * Mudar aqui muda o que o escritório já consome, então conferir antes.
  */
 public final class CsvExporter {
 

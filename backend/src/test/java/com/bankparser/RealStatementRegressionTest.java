@@ -34,12 +34,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Sem ele o teste e ignorado, aqui e no CI:
  * {@code mvn test -Dbankparser.it.pdf=C:\caminho\extrato.pdf}
  *
- * <p><b>Confira as constantes na primeira execucao local.</b> As 264 transacoes
- * vem da validacao da Fase 0/1 (bateu 264/264 com a saida do parser Python
- * original). As 11 quebras de saldo vem da analise de invariantes feita sobre
- * aquela mesma saida, antes de existir {@link BalanceValidationService} — se o
- * numero sair diferente na primeira rodada, o valor a corrigir e o daqui, nao
- * o codigo.
+ * <p><b>Constantes confirmadas na primeira execução local.</b> As 264 transações
+ * e 11 divergências de saldo são a baseline deste extrato. Se o número sair
+ * diferente na primeira rodada, o valor a corrigir é o daqui, não o código.
  */
 class RealStatementRegressionTest {
 

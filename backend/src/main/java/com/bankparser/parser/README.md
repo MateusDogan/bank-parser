@@ -5,11 +5,11 @@
 - `BankStatementParser.java` — interface abstrata (contrato para qualquer banco)
 - `StoneParser.java` — implementação para extratos Stone (agrupamento de linhas por coordenada Y, extração por faixas de coordenada X, extração de metadados do cabeçalho)
 - `TransactionExtractor.java` — utilitários reutilizáveis: parsing de moeda brasileira e datas
-- `PositionedWord.java` / `PdfWordExtractor.java` — extração de palavras posicionadas via PDFBox (equivalente ao `extract_words()` do pdfplumber em Python)
+- `PositionedWord.java` / `PdfWordExtractor.java` — extração de palavras posicionadas via PDFBox
 - `StatementParsingException.java` — erro explícito quando o PDF não é reconhecido
 - `dto/` — `ParsedTransaction`, `StatementMetadata`, `ParsingResult`
 
-Portado da lógica original em Python/pdfplumber (ver histórico do projeto `Parser/` anterior), preservando as mesmas regras:
+**Regras de parsing Stone**:
 - Agrupamento de palavras por coordenada Y (tolerância 2.5pt) para reconstruir linhas
 - Identificação de linha de transação via regex de data (`dd/mm/yy`) + palavra "Entrada"/"Saída"
 - Parsing de valores monetários brasileiros (`R$ 1.234,56`, com sinal opcional)
