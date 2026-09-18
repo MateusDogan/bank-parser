@@ -8,8 +8,8 @@ import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType0Font;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * PDFs de extrato gerados em memoria, reproduzindo o layout de colunas da
@@ -24,9 +24,9 @@ import java.io.IOException;
  *       palavras ficam visualmente proximas, o PDFBox as funde num unico trecho
  *       de texto na extracao e a divisao em palavras que o parser espera
  *       quebra.
- *   <li>A fonte e TrueType do sistema, nao uma Standard14: as Standard14 do
- *       PDFBox nao lidam com acentuacao (i, a, c com cedilha) de forma
- *       confiavel, e o parser procura exatamente "Saida" com acento.
+ *   <li>A fonte e TrueType, nao uma Standard14: as Standard14 do PDFBox nao
+ *       lidam com acentuacao (i, a, c com cedilha) de forma confiavel, e o
+ *       parser procura exatamente "Saida" com acento.
  * </ul>
  */
 public final class SyntheticStatementPdf {
@@ -35,7 +35,16 @@ public final class SyntheticStatementPdf {
     public static final String DOCUMENT = "12.345.678/0001-99";
 
     private static final float FONT_SIZE = 9f;
-    private static final String SYSTEM_FONT_PATH = "C:\\Windows\\Fonts\\arial.ttf";
+
+    /**
+     * Fonte que o proprio PDFBox empacota como fallback. Vem do classpath, e nao
+     * de um caminho do sistema, porque a suite roda no Windows e no CI (Ubuntu),
+     * onde nenhum caminho de fonte serve para os dois. A Liberation Sans e
+     * metricamente compativel com a Arial, entao as coordenadas que o parser le
+     * nao mudam.
+     */
+    private static final String FONT_RESOURCE =
+            "/org/apache/pdfbox/resources/ttf/LiberationSans-Regular.ttf";
 
     private SyntheticStatementPdf() {
     }
@@ -161,7 +170,13 @@ public final class SyntheticStatementPdf {
     }
 
     private static PDFont loadUnicodeFont(PDDocument document) throws IOException {
-        return PDType0Font.load(document, new File(SYSTEM_FONT_PATH));
+        try (InputStream font = SyntheticStatementPdf.class.getResourceAsStream(FONT_RESOURCE)) {
+            if (font == null) {
+                throw new IOException("Fonte de teste ausente no classpath: " + FONT_RESOURCE
+                        + " (o PDFBox mudou de layout de recursos?)");
+            }
+            return PDType0Font.load(document, font);
+        }
     }
 
     private static byte[] toBytes(PDDocument document) throws IOException {
