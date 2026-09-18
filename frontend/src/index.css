@@ -2,67 +2,148 @@
   box-sizing: border-box;
 }
 
+:root {
+  --color-header-bg: #1c1a17;
+  --color-bg: #ede1cd;
+  --color-dot: rgba(28, 26, 23, 0.1);
+  --color-card-bg: #ffffff;
+  --color-dropzone-bg: #faf5ea;
+  --color-dropzone-border: #c7b89a;
+  --color-dropzone-border-active: #9c7b45;
+  --color-text: #241f19;
+  --color-muted: #7a6f5d;
+  --color-accent: #9c7b45;
+  --color-pill-disabled: #b3a892;
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  background: #f5f5f5;
-  color: #1a1a1a;
+  color: var(--color-text);
 }
 
-.app {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 1.5rem;
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-header {
+.topbar {
+  background: var(--color-header-bg);
+  color: #fff;
+  padding: 1.1rem 1.5rem;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 2rem;
+  justify-content: center;
+  gap: 2rem;
+  position: relative;
 }
 
-header h1 {
-  font-size: 1.25rem;
+.topbar h1 {
   margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
 }
 
-nav a {
-  margin-left: 1rem;
-  color: #0066cc;
+.topbar nav {
+  position: absolute;
+  right: 1.5rem;
+}
+
+.topbar nav a {
+  margin-left: 1.25rem;
+  color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
-nav a.active {
-  font-weight: bold;
+.topbar nav a.active {
+  color: #fff;
+  font-weight: 700;
+}
+
+.app-main {
+  flex: 1;
+  background-color: var(--color-bg);
+  background-image: radial-gradient(var(--color-dot) 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
+  padding: 2.5rem 1.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+.upload-page,
+.page-container {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .card {
-  background: white;
+  background: var(--color-card-bg);
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 1.5rem;
 }
 
-label {
-  display: block;
-  margin-bottom: 0.3rem;
-  font-size: 0.9rem;
-  font-weight: 600;
+.dropzone {
+  background: var(--color-dropzone-bg);
+  border: 2px dashed var(--color-dropzone-border);
+  border-radius: 24px;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 2rem;
+  text-align: center;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
-select, input[type="file"], input[type="text"] {
-  width: 100%;
-  padding: 0.5rem;
-  margin-bottom: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 1rem;
+.dropzone:hover,
+.dropzone.dragging {
+  border-color: var(--color-dropzone-border-active);
+  background: #e3f7e8;
+}
+
+.dropzone.has-file {
+  border-style: solid;
+  border-color: var(--color-dropzone-border-active);
+}
+
+.dropzone-icon {
+  width: 40px;
+  height: 40px;
+  color: var(--color-muted);
+}
+
+.dropzone-icon-cloud {
+  margin-bottom: 0.5rem;
+}
+
+.dropzone-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--color-text);
+}
+
+.dropzone-subtitle {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
 }
 
 button {
-  background: #0066cc;
+  background: var(--color-accent);
   color: white;
   border: none;
   padding: 0.6rem 1.2rem;
@@ -73,6 +154,25 @@ button {
 
 button:disabled {
   background: #999;
+  cursor: not-allowed;
+}
+
+.pill-button {
+  align-self: center;
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  padding: 0.9rem 3.5rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.pill-button:disabled {
+  background: var(--color-pill-disabled);
   cursor: not-allowed;
 }
 
@@ -103,7 +203,8 @@ table {
   border-collapse: collapse;
 }
 
-th, td {
+th,
+td {
   text-align: left;
   padding: 0.6rem;
   border-bottom: 1px solid #eee;

@@ -12,8 +12,6 @@ import java.util.UUID;
  */
 public record StatementResponse(
         UUID id,
-        UUID clientId,
-        String clientName,
         String bankKey,
         String originalFilename,
         LocalDate issuedAt,
@@ -26,8 +24,6 @@ public record StatementResponse(
     public static StatementResponse from(Statement statement) {
         return new StatementResponse(
                 statement.getId(),
-                statement.getClient().getId(),
-                statement.getClient().getName(),
                 statement.getBankKey(),
                 statement.getOriginalFilename(),
                 statement.getIssuedAt(),

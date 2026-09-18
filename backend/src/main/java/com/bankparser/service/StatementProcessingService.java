@@ -1,14 +1,11 @@
 package com.bankparser.service;
 
-import com.bankparser.entity.Client;
 import com.bankparser.entity.Statement;
 import com.bankparser.entity.Transaction;
-import com.bankparser.exception.DocumentMismatchException;
 import com.bankparser.exception.ResourceNotFoundException;
 import com.bankparser.parser.BankStatementParser;
 import com.bankparser.parser.dto.ParsedTransaction;
 import com.bankparser.parser.dto.ParsingResult;
-import com.bankparser.repository.ClientRepository;
 import com.bankparser.repository.StatementRepository;
 import com.bankparser.repository.TransactionRepository;
 import com.bankparser.storage.StorageService;
@@ -30,21 +27,18 @@ public class StatementProcessingService {
     private static final String PDF_CONTENT_TYPE = "application/pdf";
 
     private final Map<String, BankStatementParser> parsersByBankKey;
-    private final ClientRepository clientRepository;
     private final StatementRepository statementRepository;
     private final TransactionRepository transactionRepository;
     private final StorageService storageService;
     private final BalanceValidationService validationService;
 
     public StatementProcessingService(List<BankStatementParser> parsers,
-                                      ClientRepository clientRepository,
                                       StatementRepository statementRepository,
                                       TransactionRepository transactionRepository,
                                       StorageService storageService,
                                       BalanceValidationService validationService) {
         this.parsersByBankKey = parsers.stream()
                 .collect(Collectors.toMap(BankStatementParser::bankKey, Function.identity()));
-        this.clientRepository = clientRepository;
         this.statementRepository = statementRepository;
         this.transactionRepository = transactionRepository;
         this.storageService = storageService;
@@ -52,20 +46,15 @@ public class StatementProcessingService {
     }
 
     @Transactional
-    public Statement process(UUID organizationId, UUID clientId, String bankKey,
-                             String originalFilename, byte[] content) {
-        Client client = clientRepository.findByOrganizationIdAndId(organizationId, clientId)
-                .orElseThrow(() -> new ResourceNotFoundException("Cliente nao encontrado: " + clientId));
-
+    public Statement process(String bankKey, String originalFilename, byte[] content) {
         BankStatementParser parser = parsersByBankKey.get(bankKey);
         if (parser == null) {
             throw new ResourceNotFoundException("Banco sem parser disponivel: " + bankKey);
         }
 
         ParsingResult result = parser.parse(new ByteArrayInputStream(content));
-        assertDocumentMatchesClient(result, client);
 
-        Statement statement = new Statement(organizationId, client, bankKey, originalFilename);
+        Statement statement = new Statement(bankKey, originalFilename);
         statement.setIssuedAt(result.metadata().emitidoEm());
         statement.setDocument(result.metadata().documento());
         statement.setTransactionCount(result.transactions().size());
@@ -75,7 +64,7 @@ public class StatementProcessingService {
         BalanceValidationService.ValidationReport report = validationService.checkBalanceContinuity(transactions);
         statement.setValidationFlags(report.toStorageSummary());
 
-        String objectKey = buildObjectKey(organizationId, statement.getId(), originalFilename);
+        String objectKey = buildObjectKey(statement.getId(), originalFilename);
         storageService.upload(objectKey, new ByteArrayInputStream(content), content.length, PDF_CONTENT_TYPE);
         statement.setStorageKey(objectKey);
 
@@ -85,20 +74,19 @@ public class StatementProcessingService {
     }
 
     @Transactional(readOnly = true)
-    public Statement findById(UUID organizationId, UUID statementId) {
-        return statementRepository.findByOrganizationIdAndId(organizationId, statementId)
+    public Statement findById(UUID statementId) {
+        return statementRepository.findById(statementId)
                 .orElseThrow(() -> new ResourceNotFoundException("Extrato nao encontrado: " + statementId));
     }
 
     @Transactional(readOnly = true)
-    public List<Statement> findAll(UUID organizationId) {
-        return statementRepository.findByOrganizationIdOrderByUploadedAtDesc(organizationId);
+    public List<Statement> findAll() {
+        return statementRepository.findAllByOrderByUploadedAtDesc();
     }
 
     @Transactional(readOnly = true)
-    public List<ParsedTransaction> transactionsForExport(UUID organizationId, UUID statementId) {
-        return transactionRepository
-                .findByOrganizationIdAndStatementIdOrderByLineNumber(organizationId, statementId)
+    public List<ParsedTransaction> transactionsForExport(UUID statementId) {
+        return transactionRepository.findByStatementIdOrderByLineNumber(statementId)
                 .stream()
                 .map(tx -> new ParsedTransaction(
                         tx.getTransactionDate(),
@@ -108,20 +96,6 @@ public class StatementProcessingService {
                         tx.getDescription(),
                         tx.getDetail()))
                 .toList();
-    }
-
-    private void assertDocumentMatchesClient(ParsingResult result, Client client) {
-        String fromPdf = Client.normalizeDocument(result.metadata().documento());
-        // Documento ausente nao invalida o extrato: o cabecalho varia de layout
-        // e nao da para conferir o que o parser nao achou.
-        if (fromPdf == null || fromPdf.isBlank()) {
-            return;
-        }
-        if (!fromPdf.equals(client.getDocument())) {
-            throw new DocumentMismatchException(
-                    "O documento do extrato (" + fromPdf + ") nao e o do cliente "
-                            + client.getName() + " (" + client.getDocument() + ")");
-        }
     }
 
     private List<Transaction> toTransactions(Statement statement, List<ParsedTransaction> parsed) {
@@ -140,7 +114,7 @@ public class StatementProcessingService {
         return transactions;
     }
 
-    private static String buildObjectKey(UUID organizationId, UUID statementId, String filename) {
-        return "organizations/%s/statements/%s/%s".formatted(organizationId, statementId, filename);
+    private static String buildObjectKey(UUID statementId, String filename) {
+        return "statements/%s/%s".formatted(statementId, filename);
     }
 }

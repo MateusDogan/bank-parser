@@ -4,9 +4,9 @@ import Statements from './pages/Statements.jsx';
 
 export default function App() {
   return (
-    <div className="app">
-      <header>
-        <h1>Bank Parser</h1>
+    <div className="app-shell">
+      <header className="topbar">
+        <h1>Extrator de PDF</h1>
         <nav>
           <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
             Upload
@@ -17,10 +17,12 @@ export default function App() {
         </nav>
       </header>
 
-      <Routes>
-        <Route path="/" element={<Upload />} />
-        <Route path="/statements" element={<Statements />} />
-      </Routes>
+      <main className="app-main">
+        <Routes>
+          <Route path="/" element={<Upload />} />
+          <Route path="/statements" element={<Statements />} />
+        </Routes>
+      </main>
     </div>
   );
 }

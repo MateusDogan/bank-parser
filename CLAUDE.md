@@ -1,7 +1,9 @@
 # Bank Parser - Guia do Projeto
 
 ## Visão Geral
-Plataforma para converter extratos bancários em PDF (formato Stone, expansível para outros bancos) em dados estruturados, com suporte a múltiplos clientes/CNPJs por escritório. Começa como ferramenta interna para um escritório de contabilidade, arquitetado para eventualmente virar SaaS multi-tenant.
+Ferramenta para converter extratos bancários em PDF (formato Stone, expansível para outros bancos) em CSV. O PDF enviado fica guardado no backend e as transações extraídas ficam no banco, disponíveis para exportar. Uso interno de um escritório de contabilidade.
+
+**Escopo deliberadamente enxuto** (decisão de 2026-09-18): não há cadastro de clientes/CNPJ, nem multi-tenant, nem autenticação. O extrato é identificado pelo próprio arquivo. Se um dia virar SaaS, `organization_id` volta como migration — foi removido justamente por ser andaime sem uso.
 
 **Plano de desenvolvimento completo**: ver [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) — sempre consultar antes de começar uma nova fase.
 
@@ -30,24 +32,20 @@ bank-parser/
     └── src/
 ```
 
-## Modelo de Dados (Multi-tenant)
+## Modelo de Dados
 ```
-Organization (tenant)     → hoje: 1 registro (o escritório). Amanhã: múltiplos.
-  └── User                → funcionários (tabela existe; auth só na Fase 10)
-  └── Client              → CNPJ atendido pelo escritório
-        └── Statement     → PDF enviado
-              └── Transaction → linha extraída
+Statement            → PDF enviado (arquivo no storage + metadados do cabeçalho)
+  └── Transaction    → linha extraída
 ```
-
-**Regra crítica**: toda query de dados filtra por `organization_id`. Nunca remover esse filtro, mesmo com uma única Organization hoje — é o que evita reescrever o modelo de dados quando virar SaaS.
 
 ## Decisões de Arquitetura (não mudar sem discussão explícita)
 
-1. **Multi-tenant desde o início** — mesmo com 1 Organization hoje
+1. **Escopo mínimo** — só o que o fluxo "PDF entra, CSV sai" exige. Cliente, tenant e usuário foram removidos por serem estrutura sem uso; não voltam sem uma necessidade concreta
 2. **Storage abstrato** (`StorageService` interface) — implementação MinIO hoje, trocável por S3/R2 depois sem mudar código de negócio
-3. **Parser isolado com testes "golden"** — PDFs reais de teste com output esperado documentado, antes de integrar com API/DB
+3. **Parser isolado com teste de regressão contra extrato real** — o PDF real nunca é versionado, então o teste é pulado quando ele não está na máquina
 4. **DTOs separados de Entities JPA** — contrato de API não quebra quando o schema do banco muda
-5. **Sem autenticação por enquanto** — `CurrentOrganizationProvider` é a costura única: na Fase 10 ele passa a ler do `SecurityContext` e nenhum controller muda. Vale só porque o sistema roda na rede interna do escritório; **expor fora dela obriga a fazer a Fase 10 antes** (ver `DEVELOPMENT_PLAN.md`)
+5. **Sem autenticação** — o sistema roda na rede interna do escritório. **Expor fora dela obriga a adicionar login antes**: sem ele, qualquer pessoa na rede lê os dados financeiros
+6. **Soft-delete em tudo** — histórico contábil não some; nada é removido fisicamente
 
 ## Setup Local
 
@@ -62,7 +60,7 @@ docker compose up -d
 cd backend
 mvn spring-boot:run
 
-# 3. Rodar frontend (React) — andaime, sera substituido na Fase 4
+# 3. Rodar frontend (React)
 cd frontend
 npm install
 npm run dev
@@ -77,7 +75,7 @@ cd backend
 mvn test
 ```
 
-Esperado: 43 testes, 2 pulados. Não precisa de Docker — Postgres e um endpoint S3
+Esperado: 32 testes, 2 pulados. Não precisa de Docker — Postgres e um endpoint S3
 rodam embarcados. Os 2 pulados dependem de um extrato real, que nunca é
 versionado:
 
@@ -85,8 +83,7 @@ versionado:
 mvn test "-Dbankparser.it.pdf=C:\caminho\para\extrato.pdf"
 ```
 
-O frontend tem `vitest` configurado, mas nenhum teste escrito — não vale
-investir enquanto ele for andaime.
+O frontend tem `vitest` configurado, mas nenhum teste escrito.
 
 ## Antes de Commitar
 - [ ] Testes passam (`mvn test` no backend)
@@ -101,4 +98,4 @@ investir enquanto ele for andaime.
 - Dados de teste usam PDFs sintéticos ou anonimizados quando possível
 
 ---
-*Última atualização: 2026-09-16*
+*Última atualização: 2026-09-18*

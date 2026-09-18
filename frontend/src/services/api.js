@@ -4,25 +4,14 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const api = axios.create({ baseURL: API_URL });
 
-export async function listClients() {
-  const { data } = await api.get('/api/clients');
-  return data;
-}
-
-export async function createClient(name, document) {
-  const { data } = await api.post('/api/clients', { name, document });
-  return data;
-}
-
 export async function listStatements() {
   const { data } = await api.get('/api/statements');
   return data;
 }
 
-export async function uploadStatement(file, clientId) {
+export async function uploadStatement(file) {
   const form = new FormData();
   form.append('file', file);
-  form.append('clientId', clientId);
   const { data } = await api.post('/api/statements/upload', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });

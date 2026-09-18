@@ -1,9 +1,5 @@
 package com.bankparser.controller;
 
-import com.bankparser.entity.Client;
-import com.bankparser.entity.Organization;
-import com.bankparser.repository.ClientRepository;
-import com.bankparser.repository.OrganizationRepository;
 import com.bankparser.repository.StatementRepository;
 import com.bankparser.repository.TransactionRepository;
 import com.bankparser.storage.StorageService;
@@ -45,32 +41,24 @@ class StatementControllerIntegrationTest extends AbstractIntegrationTest {
         }
     }
 
-    @Autowired private OrganizationRepository organizationRepository;
-    @Autowired private ClientRepository clientRepository;
     @Autowired private StatementRepository statementRepository;
     @Autowired private TransactionRepository transactionRepository;
     @Autowired private StorageService storageService;
-
-    private Client client;
 
     @BeforeEach
     void resetData() {
         // Sem @Transactional no teste: as asserções precisam enxergar o que a
         // requisicao de fato commitou (e o que ela NAO commitou, no caso de erro).
-        jdbcTemplate.execute("TRUNCATE transactions, statements, clients CASCADE");
+        jdbcTemplate.execute("TRUNCATE transactions, statements CASCADE");
         ((InMemoryStorageService) storageService).clear();
-
-        client = clientRepository.save(new Client(
-                Organization.DEFAULT_ID, "Cliente Teste", SyntheticStatementPdf.DOCUMENT_DIGITS));
     }
 
     @Test
     void uploadPersistsStatementTransactionsAndFile() throws Exception {
-        mockMvc.perform(uploadOf(SyntheticStatementPdf.withTwoTransactions(), client.getId()))
+        mockMvc.perform(uploadOf(SyntheticStatementPdf.withTwoTransactions()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.transactionCount").value(2))
                 .andExpect(jsonPath("$.bankKey").value("stone"))
-                .andExpect(jsonPath("$.clientName").value("Cliente Teste"))
                 .andExpect(jsonPath("$.issuedAt").value("2026-08-27"));
 
         assertThat(statementRepository.count()).isEqualTo(1);
@@ -83,7 +71,7 @@ class StatementControllerIntegrationTest extends AbstractIntegrationTest {
         // Os valores do PDF sintetico foram escolhidos para exercitar a extracao,
         // nao para fechar contabilmente: 32321.29 + (-300.00) nao da 2321.30, e a
         // checagem de saldo tem que acusar exatamente a linha 0 por isso.
-        mockMvc.perform(uploadOf(SyntheticStatementPdf.withTwoTransactions(), client.getId()))
+        mockMvc.perform(uploadOf(SyntheticStatementPdf.withTwoTransactions()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.parserVersion").value("1.0"))
                 .andExpect(jsonPath("$.validationFlags")
@@ -118,20 +106,20 @@ class StatementControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void findAllListsStatementsFromCurrentOrganization() throws Exception {
+    void findAllListsUploadedStatements() throws Exception {
         uploadAndGetId();
 
         mockMvc.perform(get("/api/statements"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].clientName").value("Cliente Teste"));
+                .andExpect(jsonPath("$[0].originalFilename").value("extrato.pdf"));
     }
 
     @Test
     void findAllReturnsMostRecentUploadFirst() throws Exception {
         byte[] pdf = SyntheticStatementPdf.withTwoTransactions();
-        mockMvc.perform(uploadOf(pdf, client.getId(), "primeiro.pdf")).andExpect(status().isCreated());
-        mockMvc.perform(uploadOf(pdf, client.getId(), "segundo.pdf")).andExpect(status().isCreated());
+        mockMvc.perform(uploadOf(pdf, "primeiro.pdf")).andExpect(status().isCreated());
+        mockMvc.perform(uploadOf(pdf, "segundo.pdf")).andExpect(status().isCreated());
 
         mockMvc.perform(get("/api/statements"))
                 .andExpect(status().isOk())
@@ -142,40 +130,19 @@ class StatementControllerIntegrationTest extends AbstractIntegrationTest {
     @Test
     void rejectsInvalidPdfsWithoutPersistingAnything() throws Exception {
         // Illegible amount in valid PDF structure
-        mockMvc.perform(uploadOf(SyntheticStatementPdf.withIllegibleAmount(), client.getId()))
+        mockMvc.perform(uploadOf(SyntheticStatementPdf.withIllegibleAmount()))
                 .andExpect(status().isUnprocessableEntity());
         assertThat(statementRepository.count()).isZero();
 
         // Completely unreadable PDF
-        mockMvc.perform(uploadOf("not a pdf".getBytes(StandardCharsets.UTF_8), client.getId()))
+        mockMvc.perform(uploadOf("not a pdf".getBytes(StandardCharsets.UTF_8)))
                 .andExpect(status().isUnprocessableEntity());
         assertThat(statementRepository.count()).isZero();
     }
 
-    @Test
-    void rejectsStatementBelongingToAnotherDocument() throws Exception {
-        Client outro = clientRepository.save(
-                new Client(Organization.DEFAULT_ID, "Outro Cliente", "99999999999999"));
-
-        mockMvc.perform(uploadOf(SyntheticStatementPdf.withTwoTransactions(), outro.getId()))
-                .andExpect(status().isConflict());
-
-        assertThat(statementRepository.count()).isZero();
-    }
-
-    @Test
-    void doesNotAcceptClientFromAnotherOrganization() throws Exception {
-        Organization other = organizationRepository.save(new Organization("Outro Escritorio"));
-        Client foreign = clientRepository.save(
-                new Client(other.getId(), "Cliente de Fora", SyntheticStatementPdf.DOCUMENT_DIGITS));
-
-        mockMvc.perform(uploadOf(SyntheticStatementPdf.withTwoTransactions(), foreign.getId()))
-                .andExpect(status().isNotFound());
-    }
-
     private UUID uploadAndGetId() throws Exception {
         MvcResult result = mockMvc
-                .perform(uploadOf(SyntheticStatementPdf.withTwoTransactions(), client.getId()))
+                .perform(uploadOf(SyntheticStatementPdf.withTwoTransactions()))
                 .andExpect(status().isCreated())
                 .andReturn();
         return UUID.fromString(com.jayway.jsonpath.JsonPath.read(
@@ -183,17 +150,16 @@ class StatementControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     private static org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder
-            uploadOf(byte[] pdf, UUID clientId) {
-        return uploadOf(pdf, clientId, "extrato.pdf");
+            uploadOf(byte[] pdf) {
+        return uploadOf(pdf, "extrato.pdf");
     }
 
     private static org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder
-            uploadOf(byte[] pdf, UUID clientId, String filename) {
+            uploadOf(byte[] pdf, String filename) {
         MockMultipartFile file = new MockMultipartFile(
                 "file", filename, MediaType.APPLICATION_PDF_VALUE, pdf);
         var builder = multipart("/api/statements/upload");
         builder.file(file);
-        builder.param("clientId", clientId.toString());
         return builder;
     }
 }

@@ -33,8 +33,6 @@ public final class SyntheticStatementPdf {
 
     /** Documento no cabecalho do extrato gerado por {@link #withTwoTransactions()}. */
     public static final String DOCUMENT = "12.345.678/0001-99";
-    /** Mesmo documento sem mascara, como fica persistido em {@code clients.document}. */
-    public static final String DOCUMENT_DIGITS = "12345678000199";
 
     private static final float FONT_SIZE = 9f;
     private static final String SYSTEM_FONT_PATH = "C:\\Windows\\Fonts\\arial.ttf";

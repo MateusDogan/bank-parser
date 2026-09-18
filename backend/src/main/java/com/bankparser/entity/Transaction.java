@@ -17,7 +17,6 @@ import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.UUID;
 
 /**
  * Uma linha extraida de um extrato, persistida a partir de
@@ -31,9 +30,6 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 public class Transaction extends BaseEntity {
-
-    @Column(name = "organization_id", nullable = false)
-    private UUID organizationId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "statement_id", nullable = false)
@@ -69,7 +65,6 @@ public class Transaction extends BaseEntity {
 
     public Transaction(Statement statement, int lineNumber) {
         this.statement = statement;
-        this.organizationId = statement.getOrganizationId();
         this.lineNumber = lineNumber;
     }
 }

@@ -2,9 +2,6 @@ package com.bankparser.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -14,7 +11,6 @@ import org.hibernate.annotations.SQLRestriction;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.UUID;
 
 /**
  * Um PDF de extrato enviado e processado.
@@ -31,13 +27,6 @@ import java.util.UUID;
 @NoArgsConstructor
 public class Statement extends BaseEntity {
 
-    @Column(name = "organization_id", nullable = false)
-    private UUID organizationId;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "client_id", nullable = false)
-    private Client client;
-
     /** Qual {@code BankStatementParser} processou o arquivo (ex.: "stone"). */
     @Column(name = "bank_key", nullable = false, length = 40)
     private String bankKey;
@@ -45,7 +34,7 @@ public class Statement extends BaseEntity {
     @Column(name = "original_filename", nullable = false, length = 255)
     private String originalFilename;
 
-    /** Chave do PDF no storage. Preenchida na Fase 3, quando o MinIO entra. */
+    /** Chave do PDF no storage. */
     @Column(name = "storage_key", length = 512)
     private String storageKey;
 
@@ -53,7 +42,7 @@ public class Statement extends BaseEntity {
     @Column(name = "issued_at")
     private LocalDate issuedAt;
 
-    /** CNPJ/CPF como veio no cabecalho do PDF, para conferir contra o Client. */
+    /** CNPJ/CPF como veio no cabecalho do PDF. */
     @Column(length = 32)
     private String document;
 
@@ -71,9 +60,7 @@ public class Statement extends BaseEntity {
     @Column(name = "validation_flags", columnDefinition = "text")
     private String validationFlags;
 
-    public Statement(UUID organizationId, Client client, String bankKey, String originalFilename) {
-        this.organizationId = organizationId;
-        this.client = client;
+    public Statement(String bankKey, String originalFilename) {
         this.bankKey = bankKey;
         this.originalFilename = originalFilename;
     }

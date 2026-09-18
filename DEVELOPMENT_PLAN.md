@@ -4,12 +4,31 @@
 > antes da próxima começar. Se uma fase não cabe em poucos dias, ela está mal
 > recortada.
 
-**Objetivo**: converter extratos bancários em PDF para dados estruturados que o
-escritório consome, começando como ferramenta interna e podendo virar SaaS.
+**Objetivo**: enviar um extrato bancário em PDF, guardá-lo, e baixar as
+transações em CSV.
 
 **Stack**: Java 17 + Spring Boot 3 | React | PostgreSQL 15 | MinIO | Docker
 
 As decisões de arquitetura que não mudam sem discussão estão no `CLAUDE.md`.
+
+---
+
+## A simplificação de 2026-09-18
+
+O projeto nasceu multi-tenant: `Organization → User → Client → Statement →
+Transaction`, com `organization_id` em toda tabela e conferência de CNPJ no
+upload. Nada disso tinha uso — havia uma Organization fixa, nenhum User, e o
+cadastro de Client era um passo a mais antes de conseguir converter um PDF.
+
+**Removido**: `Organization`, `User`, `Client`, `CurrentOrganizationProvider`,
+`ClientController`, `DocumentMismatchException`, `DuplicateClientException`,
+`organization_id` de todas as tabelas, e as migrations V2–V4 (o schema virou uma
+V1 nova, com `statements` e `transactions` apenas).
+
+**Sobrou**: upload → parse → PDF no storage → transações no banco → CSV.
+
+Se o sistema virar SaaS, multi-tenant volta como migration. Foi removido por ser
+estrutura sem uso, não por ser má ideia.
 
 ---
 
@@ -19,46 +38,37 @@ As decisões de arquitetura que não mudam sem discussão estão no `CLAUDE.md`.
 |------|------|---------|------------|
 | **0** | **MVP — o que já existe** | — | ✅ concluída |
 | 1 | Primeiro uso real | 1–2 dias | Docker na máquina |
-| 2 | Desfazer e recuperar | 2 dias | 1 |
+| 2 | Desfazer e recuperar | 1–2 dias | 1 |
 | 3 | Reenvio e duplicata | 2 dias | 2 |
-| 4 | Frontend novo | a definir | modelo de tela |
-| 5 | Conferência do extrato | 2–3 dias | 4 |
-| 6 | Exportação para a contabilidade | 2 dias | feedback da 1 |
-| 7 | Segundo banco | 3–4 dias | — |
-| 8 | Relatórios | 3 dias | 4 |
-| 9 | Operação | 2 dias | 1 |
-| 10 | Autenticação | 3–4 dias | — |
-| 11 | SaaS | — | tudo acima |
+| 4 | Exportação para a contabilidade | 2 dias | feedback da 1 |
+| 5 | Conferência do extrato | 2–3 dias | 1 |
+| 6 | Segundo banco | 3–4 dias | — |
+| 7 | Operação | 2 dias | 1 |
 
-**Independentes do frontend** (dá para tocar enquanto o modelo de tela não
-chega): 1, 2, 3, 6, 7, 9, 10.
-
-O frontend React atual é **andaime**: existe para exercitar a API enquanto o
-modelo novo não chega. Não vale investir nele além do mínimo — será substituído
-na Fase 5.
+Depois disso, só o que o uso real pedir. Autenticação e multi-tenant não estão
+no mapa: entram se o sistema sair da rede interna ou virar produto.
 
 ---
 
 ## Fase 0 — MVP (concluída)
 
-Upload de PDF Stone → extração → CSV, com isolamento multi-tenant e
-rastreabilidade de parser. É o ponto de partida de tudo que vem depois.
+Upload de PDF Stone → extração → CSV, com o PDF guardado e rastreabilidade de
+parser.
 
 **Entregue**:
 - **Parser** `StoneParser` por coordenadas (PDFBox), validado 264/264 contra a
   saída do parser Python original. `BankStatementParser` é interface; o segundo
   banco não mexe no resto do sistema.
-- **Dados**: Postgres + Flyway (V1–V4), modelo `Organization → Client →
-  Statement → Transaction`, `organization_id` em toda tabela, soft-delete em
-  tudo (histórico contábil não some).
+- **Dados**: Postgres + Flyway (V1), modelo `Statement → Transaction`,
+  soft-delete em tudo (histórico contábil não some).
 - **Storage**: `StorageService` com implementação MinIO — trocar por S3/R2 não
   toca em código de negócio.
-- **API**: `POST/GET /api/clients`, `POST /api/statements/upload`,
-  `GET /api/statements`, `GET /api/statements/{id}`,
-  `GET /api/statements/{id}/export`.
+- **API**: `POST /api/statements/upload`, `GET /api/statements`,
+  `GET /api/statements/{id}`, `GET /api/statements/{id}/export`.
+- **Frontend**: arrastar PDF → **Iniciar** → lista de extratos → baixar CSV.
 - **Rastreabilidade**: `parser_version` por extrato, `TransactionType` enum,
   `BalanceValidationService` sinalizando divergência de saldo sem bloquear.
-- **Testes**: 43 (2 pulados por dependerem do extrato real). Postgres e S3
+- **Testes**: 32 (2 pulados por dependerem do extrato real). Postgres e S3
   embarcados — a suíte roda sem Docker.
 - **CI**: testes a cada push; frontend publicado no GitHub Pages.
 
@@ -79,7 +89,7 @@ ponta, e o CSV serve.
 **Entrega**:
 - `docker compose up -d` validado (Postgres + MinIO), migrations aplicadas
 - Imagem do backend construída: `docker compose --profile full up -d`
-- Um PDF real: cadastra cliente → envia → baixa CSV
+- Um PDF real: arrasta → envia → baixa CSV
 - `mvn test -Dbankparser.it.pdf=...` rodado; constantes da baseline confirmadas
   ou corrigidas
 - `SETUP_MVP.md` ajustado com o que der errado no caminho
@@ -101,7 +111,7 @@ tempo economiza de fato? *Tudo que vier daqui pode reordenar as fases seguintes
   já existe e hoje não tem chamador
 - `DELETE /api/statements/{id}` — soft-delete, o extrato some da lista mas fica
   no histórico
-- `DELETE /api/clients/{id}` — só quando não há extrato ativo, senão 409
+- Botão de apagar na lista de extratos
 
 **Pronto quando**: dá para apagar um envio errado e reenviar sem SQL na mão.
 
@@ -117,8 +127,7 @@ tempo economiza de fato? *Tudo que vier daqui pode reordenar as fases seguintes
 - Hash do PDF gravado no `Statement` (migration + coluna)
 - Upload de arquivo idêntico responde `409` com link para o existente, e um
   parâmetro explícito (`?force=true`) para enviar assim mesmo
-- Aviso quando já existe extrato do mesmo cliente e período, mesmo com arquivo
-  diferente
+- Aviso quando já existe extrato do mesmo período, mesmo com arquivo diferente
 
 **Pronto quando**: enviar o mesmo arquivo duas vezes por engano não cria dois
 extratos em silêncio.
@@ -128,44 +137,7 @@ extratos em silêncio.
 
 ---
 
-## Fase 4 — Frontend novo
-
-**Objetivo**: substituir o andaime pelo modelo de tela definido por você.
-
-**Entrega**: depende do modelo. O que já está pronto do lado da API: listagem de
-clientes e extratos, upload, download de CSV, e (conforme as fases 2–3 avancem)
-PDF original, exclusão e aviso de duplicata.
-
-**Pronto quando**: o andaime atual pode ser apagado do repositório.
-
-**Bloqueio**: aguardando o modelo. Enquanto isso, as fases independentes andam.
-
----
-
-## Fase 5 — Conferência do extrato
-
-**Objetivo**: transformar `validation_flags` em trabalho de conferência de
-verdade, em vez de um campo que ninguém olha.
-
-**Entrega**:
-- As divergências de saldo aparecem na tela, na linha certa
-- Marcar um extrato como conferido, com data
-- Corrigir uma transação manualmente, com registro de que foi editada — o valor
-  original nunca é sobrescrito sem trilha
-
-**Decisão pendente**: sem autenticação (Fase 10), "conferido" não tem *quem* —
-só *quando*. Ou se aceita a trilha sem autoria, ou esta fase espera a 10. Decidir
-ao chegar aqui, não antes.
-
-**Pronto quando**: dá para saber, olhando a lista, quais extratos precisam de
-atenção humana.
-
-**Feedback**: as divergências que o sistema aponta são as que importam, ou é
-ruído?
-
----
-
-## Fase 6 — Exportação para a contabilidade
+## Fase 4 — Exportação para a contabilidade
 
 **Objetivo**: exportar no formato que o sistema contábil do escritório aceita.
 
@@ -180,7 +152,29 @@ ruído?
 
 ---
 
-## Fase 7 — Segundo banco
+## Fase 5 — Conferência do extrato
+
+**Objetivo**: transformar `validation_flags` em trabalho de conferência de
+verdade, em vez de um campo que ninguém olha.
+
+**Entrega**:
+- As divergências de saldo aparecem na tela, na linha certa
+- Marcar um extrato como conferido, com data
+- Corrigir uma transação manualmente, com registro de que foi editada — o valor
+  original nunca é sobrescrito sem trilha
+
+**Nota**: sem autenticação, "conferido" não tem *quem* — só *quando*. Para uso
+interno isso basta; se não bastar, é sinal de que login virou necessidade.
+
+**Pronto quando**: dá para saber, olhando a lista, quais extratos precisam de
+atenção humana.
+
+**Feedback**: as divergências que o sistema aponta são as que importam, ou é
+ruído?
+
+---
+
+## Fase 6 — Segundo banco
 
 **Objetivo**: provar que trocar/adicionar parser não mexe no resto.
 
@@ -197,22 +191,7 @@ mudar, a arquitetura falhou e vale parar para entender por quê.*
 
 ---
 
-## Fase 8 — Relatórios
-
-**Objetivo**: responder perguntas que hoje exigem abrir o CSV no Excel.
-
-**Entrega**:
-- Totais por cliente e período
-- Evolução de saldo
-- Filtros e paginação nas listagens — o volume real medido nas fases anteriores
-  é que diz se isso já é necessário
-
-**Pronto quando**: a pergunta mais frequente do escritório é respondida sem
-exportar nada.
-
----
-
-## Fase 9 — Operação
+## Fase 7 — Operação
 
 **Objetivo**: o sistema sobreviver a uma semana sem ninguém olhando.
 
@@ -226,40 +205,6 @@ exportar nada.
 
 ---
 
-## Fase 10 — Autenticação
-
-**Objetivo**: cada pessoa entra com o próprio usuário.
-
-**Entrega**:
-- Spring Security; a entidade `User` e a tabela `users` já existem desde a V1
-- `CurrentOrganizationProvider` passa a ler do `SecurityContext` — a costura foi
-  feita justamente para isso, nenhum controller muda
-- Cadastro de usuário pelo administrador do escritório
-- Testes de isolamento: usuário de uma organização não alcança dados de outra
-
-**Pronto quando**: derrubar a sessão bloqueia o acesso a toda a API.
-
-**Por que tão tarde** (decisão de 2026-09-16): o sistema vai rodar **na rede
-interna do escritório**, não exposto na internet. Isso adia a necessidade, mas
-não a elimina — enquanto não existir login, **qualquer pessoa com acesso à rede
-lê os dados financeiros de todos os clientes**, e nenhuma ação fica atribuída a
-ninguém. É um risco aceito de forma consciente, não um esquecimento.
-
-**O que refaz esta conta**: expor a aplicação fora da rede interna, por qualquer
-motivo (acesso remoto, home office, um cliente querendo consultar o próprio
-extrato). Se isso entrar em pauta, esta fase **vem antes** do que estiver na
-frente dela.
-
----
-
-## Fase 11 — SaaS
-
-Só depois de o escritório usar o sistema por um tempo e as fases acima estarem
-estáveis: cadastro de novas organizações, cobrança (Stripe), onboarding,
-limites por plano.
-
----
-
 ## Como usar este documento
 
 - Uma fase por vez. Terminou, colhe o feedback, e só então decide a próxima —
@@ -268,6 +213,9 @@ limites por plano.
 - Ao concluir, marque aqui o que ficou **verificado** e o que ficou **suposto**.
   A Fase 0 é o exemplo: o código está pronto, mas quatro coisas nunca rodaram de
   verdade, e isso está escrito lá em vez de ficar implícito.
+- Antes de adicionar estrutura (uma entidade, uma camada, uma abstração),
+  pergunte se algo hoje a usa. A simplificação de 2026-09-18 existe porque essa
+  pergunta não foi feita antes.
 
 ---
-*Atualizado: 2026-09-16*
+*Atualizado: 2026-09-18*

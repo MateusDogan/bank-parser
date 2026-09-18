@@ -1,131 +1,112 @@
-import { useEffect, useState } from 'react';
-import { listClients, createClient, uploadStatement, extractErrorMessage } from '../services/api.js';
+import { useRef, useState } from 'react';
+import { uploadStatement, extractErrorMessage } from '../services/api.js';
 
 export default function Upload() {
-  const [clients, setClients] = useState([]);
-  const [clientId, setClientId] = useState('');
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState(null); // { type: 'success'|'error'|'info', message }
+  const [isDragging, setIsDragging] = useState(false);
 
-  const [newClientName, setNewClientName] = useState('');
-  const [newClientDocument, setNewClientDocument] = useState('');
-  const [creatingClient, setCreatingClient] = useState(false);
+  const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    refreshClients();
-  }, []);
-
-  async function refreshClients() {
-    try {
-      const data = await listClients();
-      setClients(data);
-      if (data.length > 0 && !clientId) {
-        setClientId(data[0].id);
-      }
-    } catch (err) {
-      setStatus({ type: 'error', message: extractErrorMessage(err) });
+  function handleFileSelect(selected) {
+    if (!selected) return;
+    if (selected.type !== 'application/pdf') {
+      setStatus({ type: 'error', message: 'Apenas arquivos PDF são aceitos.' });
+      return;
     }
-  }
-
-  async function handleCreateClient(e) {
-    e.preventDefault();
-    setCreatingClient(true);
+    setFile(selected);
     setStatus(null);
-    try {
-      const client = await createClient(newClientName, newClientDocument);
-      setNewClientName('');
-      setNewClientDocument('');
-      await refreshClients();
-      setClientId(client.id);
-      setStatus({ type: 'success', message: `Cliente "${client.name}" cadastrado.` });
-    } catch (err) {
-      setStatus({ type: 'error', message: extractErrorMessage(err) });
-    } finally {
-      setCreatingClient(false);
-    }
   }
 
-  async function handleUpload(e) {
+  function handleDrop(e) {
     e.preventDefault();
-    if (!file || !clientId) return;
+    setIsDragging(false);
+    handleFileSelect(e.dataTransfer.files[0]);
+  }
 
+  async function handleStart() {
+    if (!file) return;
     setStatus({ type: 'info', message: 'Enviando...' });
     try {
-      await uploadStatement(file, clientId);
+      await uploadStatement(file);
       setStatus({ type: 'success', message: 'Extrato enviado e processado com sucesso!' });
       setFile(null);
-      e.target.reset();
+      if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       setStatus({ type: 'error', message: extractErrorMessage(err) });
     }
   }
 
   return (
-    <div>
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Novo Cliente</h2>
-        <form onSubmit={handleCreateClient}>
-          <label htmlFor="newClientName">Nome</label>
-          <input
-            id="newClientName"
-            type="text"
-            value={newClientName}
-            onChange={(e) => setNewClientName(e.target.value)}
-            required
-          />
+    <div className="upload-page">
+      <div
+        className={`dropzone ${isDragging ? 'dragging' : ''} ${file ? 'has-file' : ''}`}
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/pdf"
+          hidden
+          onChange={(e) => handleFileSelect(e.target.files[0])}
+        />
 
-          <label htmlFor="newClientDocument">CNPJ / CPF</label>
-          <input
-            id="newClientDocument"
-            type="text"
-            value={newClientDocument}
-            onChange={(e) => setNewClientDocument(e.target.value)}
-            placeholder="12.345.678/0001-99"
-            required
+        <svg className="dropzone-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path
+            d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
           />
+          <path d="M15 2v5h5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+          <path d="M8 13h8M8 17h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
 
-          <button type="submit" disabled={creatingClient}>
-            {creatingClient ? 'Cadastrando...' : 'Cadastrar Cliente'}
-          </button>
-        </form>
+        <svg
+          className="dropzone-icon dropzone-icon-cloud"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M7 18a4 4 0 0 1-.5-7.97A5 5 0 0 1 16.5 8.5 4 4 0 0 1 16 18H7Z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M12 12v6M9.5 15.5 12 13l2.5 2.5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+
+        {file ? (
+          <>
+            <p className="dropzone-title">{file.name}</p>
+            <p className="dropzone-subtitle">clique para trocar o arquivo</p>
+          </>
+        ) : (
+          <>
+            <p className="dropzone-title">Arraste o PDF aqui</p>
+            <p className="dropzone-subtitle">ou clique para escolher</p>
+          </>
+        )}
       </div>
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Enviar Extrato (PDF)</h2>
-        <form onSubmit={handleUpload}>
-          <label htmlFor="clientSelect">Cliente</label>
-          <select
-            id="clientSelect"
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            required
-          >
-            <option value="" disabled>
-              {clients.length === 0 ? 'Nenhum cliente cadastrado' : 'Escolha um cliente'}
-            </option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.document})
-              </option>
-            ))}
-          </select>
+      <button type="button" className="pill-button" disabled={!file} onClick={handleStart}>
+        Iniciar
+      </button>
 
-          <label htmlFor="pdfFile">Arquivo PDF</label>
-          <input
-            id="pdfFile"
-            type="file"
-            accept="application/pdf"
-            onChange={(e) => setFile(e.target.files[0])}
-            required
-          />
-
-          <button type="submit" disabled={!file || !clientId}>
-            Enviar
-          </button>
-        </form>
-
-        {status && <div className={`feedback ${status.type}`}>{status.message}</div>}
-      </div>
+      {status && <div className={`feedback ${status.type}`}>{status.message}</div>}
     </div>
   );
 }

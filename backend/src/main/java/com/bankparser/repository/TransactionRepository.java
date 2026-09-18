@@ -8,6 +8,6 @@ import java.util.UUID;
 
 public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
 
-    /** Ordem original do PDF — usada na exportacao de CSV/Excel. */
-    List<Transaction> findByOrganizationIdAndStatementIdOrderByLineNumber(UUID organizationId, UUID statementId);
+    /** Ordem original do PDF — usada na exportacao de CSV. */
+    List<Transaction> findByStatementIdOrderByLineNumber(UUID statementId);
 }

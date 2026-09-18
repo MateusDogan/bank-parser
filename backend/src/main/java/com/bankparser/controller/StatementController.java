@@ -3,7 +3,6 @@ package com.bankparser.controller;
 import com.bankparser.dto.StatementResponse;
 import com.bankparser.entity.Statement;
 import com.bankparser.parser.dto.ParsedTransaction;
-import com.bankparser.service.CurrentOrganizationProvider;
 import com.bankparser.service.StatementProcessingService;
 import com.bankparser.util.CsvExporter;
 import org.springframework.core.io.ByteArrayResource;
@@ -34,39 +33,30 @@ public class StatementController {
     private static final MediaType TEXT_CSV = new MediaType("text", "csv", StandardCharsets.UTF_8);
 
     private final StatementProcessingService processingService;
-    private final CurrentOrganizationProvider organizationProvider;
 
-    public StatementController(StatementProcessingService processingService,
-                               CurrentOrganizationProvider organizationProvider) {
+    public StatementController(StatementProcessingService processingService) {
         this.processingService = processingService;
-        this.organizationProvider = organizationProvider;
     }
 
     @PostMapping("/upload")
     public ResponseEntity<StatementResponse> upload(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("clientId") UUID clientId,
             @RequestParam(name = "bankKey", defaultValue = "stone") String bankKey) throws IOException {
 
         Statement statement = processingService.process(
-                organizationProvider.currentOrganizationId(),
-                clientId,
-                bankKey,
-                file.getOriginalFilename(),
-                file.getBytes());
+                bankKey, file.getOriginalFilename(), file.getBytes());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(StatementResponse.from(statement));
     }
 
     @GetMapping("/{id}")
     public StatementResponse findById(@PathVariable UUID id) {
-        return StatementResponse.from(
-                processingService.findById(organizationProvider.currentOrganizationId(), id));
+        return StatementResponse.from(processingService.findById(id));
     }
 
     @GetMapping
     public List<StatementResponse> findAll() {
-        return processingService.findAll(organizationProvider.currentOrganizationId())
+        return processingService.findAll()
                 .stream()
                 .map(StatementResponse::from)
                 .toList();
@@ -75,13 +65,12 @@ public class StatementController {
     @GetMapping("/{id}/export")
     public ResponseEntity<Resource> export(@PathVariable UUID id,
                                            @RequestParam(defaultValue = "csv") String format) throws IOException {
-        UUID organizationId = organizationProvider.currentOrganizationId();
         if (!"csv".equalsIgnoreCase(format)) {
             return ResponseEntity.badRequest().build();
         }
 
-        Statement statement = processingService.findById(organizationId, id);
-        List<ParsedTransaction> transactions = processingService.transactionsForExport(organizationId, id);
+        Statement statement = processingService.findById(id);
+        List<ParsedTransaction> transactions = processingService.transactionsForExport(id);
 
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         CsvExporter.writeCsv(transactions, buffer);

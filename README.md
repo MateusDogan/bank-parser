@@ -1,6 +1,6 @@
 # Bank Parser
 
-Plataforma para conversão de extratos bancários (PDF) em dados estruturados, com suporte a múltiplos clientes por escritório de contabilidade.
+Ferramenta para converter extratos bancários (PDF) em CSV: envia o PDF, ele fica guardado no backend, e as transações extraídas viram um arquivo que o escritório consome.
 
 ## Status
 

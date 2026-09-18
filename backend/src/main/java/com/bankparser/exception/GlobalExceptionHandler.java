@@ -27,11 +27,6 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
-    @ExceptionHandler(DuplicateClientException.class)
-    public ResponseEntity<ErrorResponse> handleDuplicateClient(DuplicateClientException e) {
-        return build(HttpStatus.CONFLICT, e.getMessage());
-    }
-
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException e) {
         String message = e.getBindingResult().getFieldErrors().stream()
@@ -47,11 +42,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(StatementParsingException.class)
     public ResponseEntity<ErrorResponse> handleParsing(StatementParsingException e) {
         return build(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
-    }
-
-    @ExceptionHandler(DocumentMismatchException.class)
-    public ResponseEntity<ErrorResponse> handleDocumentMismatch(DocumentMismatchException e) {
-        return build(HttpStatus.CONFLICT, e.getMessage());
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

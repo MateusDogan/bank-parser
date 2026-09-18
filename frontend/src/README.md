@@ -1,22 +1,20 @@
 # Frontend Source
 
-> **Andaime.** Existe para exercitar a API enquanto o modelo de tela novo não
-> chega, e será substituído na Fase 4 (ver `DEVELOPMENT_PLAN.md`). Não vale
-> investir aqui além do mínimo para testar o backend.
+React minimalista: arrastar um PDF, enviar, baixar o CSV. Nada mais.
 
-React minimalista: upload de PDF e download de CSV, nada mais.
-Paginação, filtros, dashboard e gráficos ficam para uma fase de expansão futura
-(o `recharts` já está no `package.json` esperando por isso, mas não é usado ainda).
+O visual segue o modelo feito no Lovable (header escuro, fundo bege pontilhado,
+área de arraste tracejada, botão pill). As cores ficam em variáveis CSS no topo
+do `index.css` — mexer no tema é mexer só lá.
 
 ```
 src/
-├── main.jsx          # entry point, HashRouter (GitHub Pages nao suporta BrowserRouter sem config extra)
+├── main.jsx           # entry point, HashRouter (GitHub Pages nao suporta BrowserRouter sem config extra)
 ├── App.jsx            # layout + 2 rotas
 ├── pages/
-│   ├── Upload.jsx      # cadastro rapido de cliente + upload de PDF
-│   └── Statements.jsx  # lista de extratos + download CSV
+│   ├── Upload.jsx     # area de arraste + envio do PDF
+│   └── Statements.jsx # lista de extratos + download CSV
 ├── services/
-│   └── api.js          # unico ponto de chamadas HTTP (axios)
+│   └── api.js         # unico ponto de chamadas HTTP (axios)
 └── index.css
 ```
 

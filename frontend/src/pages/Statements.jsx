@@ -12,11 +12,15 @@ export default function Statements() {
   }, []);
 
   if (error) {
-    return <div className="feedback error">{error}</div>;
+    return (
+      <div className="page-container">
+        <div className="feedback error">{error}</div>
+      </div>
+    );
   }
 
   return (
-    <div className="card">
+    <div className="page-container card">
       <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Meus Extratos</h2>
 
       {statements.length === 0 ? (
@@ -25,7 +29,6 @@ export default function Statements() {
         <table>
           <thead>
             <tr>
-              <th>Cliente</th>
               <th>Arquivo</th>
               <th>Transações</th>
               <th>Enviado em</th>
@@ -35,7 +38,6 @@ export default function Statements() {
           <tbody>
             {statements.map((s) => (
               <tr key={s.id}>
-                <td>{s.clientName}</td>
                 <td>{s.originalFilename}</td>
                 <td>{s.transactionCount}</td>
                 <td>{new Date(s.uploadedAt).toLocaleString('pt-BR')}</td>
